@@ -68,7 +68,9 @@ public class AuthController : BaseController<AuthController>
                 Id = userResult.Value.Id,
                 Email = userResult.Value.Email,
                 FirstName = userResult.Value.FirstName,
-                LastName = userResult.Value.LastName
+                LastName = userResult.Value.LastName,
+                Role = userResult.Value.Role,
+                PhoneNumber = userResult.Value.PhoneNumber
             }
         };
 
@@ -166,7 +168,9 @@ public class AuthController : BaseController<AuthController>
                 Id = validationResult.Value.Id,
                 Email = validationResult.Value.Email,
                 FirstName = validationResult.Value.FirstName,
-                LastName = validationResult.Value.LastName
+                LastName = validationResult.Value.LastName,
+                Role = validationResult.Value.Role,
+                PhoneNumber = validationResult.Value.PhoneNumber
             }
         };
 
@@ -212,7 +216,7 @@ public class AuthController : BaseController<AuthController>
                 Id = result.Value.Id,
                 Email = result.Value.Email,
                 FirstName = result.Value.FirstName,
-                LastName = result.Value.LastName
+                LastName = result.Value.LastName,
             }
         };
 
@@ -298,6 +302,8 @@ public class AuthController : BaseController<AuthController>
                 Email = result.Value.Email,
                 FirstName = result.Value.FirstName,
                 LastName = result.Value.LastName,
+                Role = result.Value.Role,
+                PhoneNumber = result.Value.PhoneNumber
             };
 
             return Ok(userDto);

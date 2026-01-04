@@ -1,4 +1,5 @@
 using SpotRent.Domain.Entities;
+using SpotRent.Domain.Enums;
 
 namespace SpotRent.Api.Dtos.Auth;
 
@@ -12,14 +13,20 @@ public class UserDto
 
     public string LastName { get; set; }
 
-    public static UserDto MapUser(User spaceOwner)
+    public Role Role { get; set; }
+
+    public string PhoneNumber { get; set; }
+
+    public static UserDto MapUser(User u)
     {
         return new UserDto
         {
-            Id = spaceOwner.Id,
-            Email = spaceOwner.Email,
-            FirstName = spaceOwner.FirstName,
-            LastName = spaceOwner.LastName
+            Id = u.Id,
+            Email = u.Email,
+            FirstName = u.FirstName,
+            LastName = u.LastName,
+            Role = u.Role,
+            PhoneNumber = u.PhoneNumber
         };
     }
 }
