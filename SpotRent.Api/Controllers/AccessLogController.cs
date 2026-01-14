@@ -2,6 +2,7 @@
 using SpotRent.Api.Dtos.Iot;
 using SpotRent.Api.Logging;
 using SpotRent.Domain.Extensions;
+using SpotRent.Services.Devices;
 using SpotRent.Services.Interfaces;
 
 namespace SpotRent.Api.Controllers;
@@ -43,14 +44,17 @@ public class AccessLogController : BaseController<AccessLogController>
             return StatusCode(StatusCodes.Status400BadRequest, "Request payload is not valid");
         }
 
-        var result = await _accessLogService.LogAccessAsync(
-            request.UserId,
-            request.DeviceId,
-            request.AccessType,
-            request.BookingId.Value,
-            cancellationToken: cancellationToken,
-            request.IsSuccessful,
-            request.ErrorMessage);
+        var serviceDto = new LogAccessRequestDto
+        {
+            UserId = request.UserId,
+            DeviceId = request.DeviceId,
+            AccessType = request.AccessType,
+            BookingId = request.BookingId.Value,
+            IsSuccessful = request.IsSuccessful,
+            ErrorMessage = request.ErrorMessage
+        };
+
+        var result = await _accessLogService.LogAccessAsync(serviceDto, cancellationToken);
 
         result.OnSuccess(() =>
                 Log(LogLevel.Information, AccessLogControllerEventIds.CreateAccessLogSuccess,
@@ -89,13 +93,16 @@ public class AccessLogController : BaseController<AccessLogController>
             return StatusCode(StatusCodes.Status400BadRequest, "Request payload is not valid");
         }
 
-        var result = await _accessLogService.LogOwnerAccessAsync(
-            request.UserId,
-            request.DeviceId,
-            request.AccessType,
-            cancellationToken: cancellationToken,
-            request.IsSuccessful,
-            request.ErrorMessage);
+        var serviceDto = new LogOwnerAccessRequestDto
+        {
+            UserId = request.UserId,
+            DeviceId = request.DeviceId,
+            AccessType = request.AccessType,
+            IsSuccessful = request.IsSuccessful,
+            ErrorMessage = request.ErrorMessage
+        };
+
+        var result = await _accessLogService.LogOwnerAccessAsync(serviceDto, cancellationToken);
 
         result.OnSuccess(() =>
                 Log(LogLevel.Information, AccessLogControllerEventIds.CreateAccessLogSuccess,

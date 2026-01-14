@@ -16,44 +16,44 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
     }
 
     public async Task<Result<int>> LogAccessAsync(
-        int userId,
-        int deviceId,
-        AccessType accessType,
-        int bookingId,
-        CancellationToken cancellationToken,
-        bool isSuccessful = true,
-        string errorMessage = null)
+        LogAccessRequestDto request,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         try
         {
-            var userExists = await Context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
+            if (request == null)
+            {
+                return Result.Fail<int>("Request is null");
+            }
+
+            var userExists = await Context.Users.AnyAsync(u => u.Id == request.UserId, cancellationToken);
             if (!userExists)
             {
-                return Result.Fail<int>($"User with id {userId} does not exist");
+                return Result.Fail<int>($"User with id {request.UserId} does not exist");
             }
 
-            var deviceExists = await Context.Devices.AnyAsync(d => d.Id == deviceId, cancellationToken);
+            var deviceExists = await Context.Devices.AnyAsync(d => d.Id == request.DeviceId, cancellationToken);
             if (!deviceExists)
             {
-                return Result.Fail<int>($"Device with id {deviceId} does not exist");
+                return Result.Fail<int>($"Device with id {request.DeviceId} does not exist");
             }
 
-            var booking = await Context.Bookings.FindAsync(new object[] { bookingId }, cancellationToken);
+            var booking = await Context.Bookings.FindAsync(new object[] { request.BookingId }, cancellationToken);
             if (booking is null)
             {
-                return Result.Fail<int>($"Booking with id {bookingId} does not exist");
+                return Result.Fail<int>($"Booking with id {request.BookingId} does not exist");
             }
 
             var log = new AccessLog
             {
-                UserId = userId,
-                DeviceId = deviceId,
+                UserId = request.UserId,
+                DeviceId = request.DeviceId,
                 SpaceId = booking.SpaceId,
-                AccessType = accessType,
-                IsSuccessful = isSuccessful,
-                ErrorMessage = errorMessage
+                AccessType = request.AccessType,
+                IsSuccessful = request.IsSuccessful,
+                ErrorMessage = request.ErrorMessage
             };
 
             await Context.AddAsync(log, cancellationToken);
@@ -76,30 +76,31 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
     }
 
     public async Task<Result<int>> LogOwnerAccessAsync(
-        int userId,
-        int deviceId,
-        AccessType accessType,
-        CancellationToken cancellationToken,
-        bool isSuccessful = true,
-        string errorMessage = null)
+        LogOwnerAccessRequestDto request,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         try
         {
-            var userExists = await Context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
+            if (request == null)
+            {
+                return Result.Fail<int>("Request is null");
+            }
+
+            var userExists = await Context.Users.AnyAsync(u => u.Id == request.UserId, cancellationToken);
             if (!userExists)
             {
-                return Result.Fail<int>($"User with id {userId} does not exist");
+                return Result.Fail<int>($"User with id {request.UserId} does not exist");
             }
 
-            var deviceExists = await Context.Devices.AnyAsync(d => d.Id == deviceId, cancellationToken);
+            var deviceExists = await Context.Devices.AnyAsync(d => d.Id == request.DeviceId, cancellationToken);
             if (!deviceExists)
             {
-                return Result.Fail<int>($"Device with id {deviceId} does not exist");
+                return Result.Fail<int>($"Device with id {request.DeviceId} does not exist");
             }
 
-            var space = await Context.Spaces.FirstOrDefaultAsync(s => s.OwnerId == userId, cancellationToken);
+            var space = await Context.Spaces.FirstOrDefaultAsync(s => s.OwnerId == request.UserId, cancellationToken);
             if (space is null)
             {
                 return Result.Fail<int>("Space is not found");
@@ -107,12 +108,12 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
 
             var log = new AccessLog
             {
-                UserId = userId,
-                DeviceId = deviceId,
+                UserId = request.UserId,
+                DeviceId = request.DeviceId,
                 SpaceId = space.Id,
-                AccessType = accessType,
-                IsSuccessful = isSuccessful,
-                ErrorMessage = errorMessage
+                AccessType = request.AccessType,
+                IsSuccessful = request.IsSuccessful,
+                ErrorMessage = request.ErrorMessage
             };
 
             await Context.AddAsync(log, cancellationToken);

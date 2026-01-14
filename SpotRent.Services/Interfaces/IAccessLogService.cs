@@ -1,27 +1,14 @@
 using SpotRent.Domain.Common;
 using SpotRent.Domain.Entities;
-using SpotRent.Domain.Enums;
+using SpotRent.Services.Devices;
 
 namespace SpotRent.Services.Interfaces;
 
 public interface IAccessLogService
 {
-    Task<Result<int>> LogAccessAsync(
-        int userId,
-        int deviceId,
-        AccessType accessType,
-        int bookingId,
-        CancellationToken cancellationToken,
-        bool isSuccessful = true,
-        string errorMessage = null);
+    Task<Result<int>> LogAccessAsync(LogAccessRequestDto request, CancellationToken cancellationToken);
 
-    Task<Result<int>> LogOwnerAccessAsync(
-        int userId,
-        int deviceId,
-        AccessType accessType,
-        CancellationToken cancellationToken,
-        bool isSuccessful = true,
-        string errorMessage = null);
+    Task<Result<int>> LogOwnerAccessAsync(LogOwnerAccessRequestDto request, CancellationToken cancellationToken);
 
     Task<Result<IEnumerable<AccessLog>>> GetSpaceAccessLogsAsync(int deviceId, CancellationToken cancellationToken);
 

@@ -119,8 +119,16 @@ public class AuthController : BaseController<AuthController>
             Role = Role.User,
         };
 
-        var result = await _authService.RegisterAsync(user, registerRequest.Password,
-            registerRequest.PhoneNumber, registerRequest.FirstName, registerRequest.LastName, cancellationToken);
+        var registrationRequest = new Services.Auth.RegistrationRequest
+        {
+            User = user,
+            FirstName = registerRequest.FirstName,
+            LastName = registerRequest.LastName,
+            Password = registerRequest.Password,
+            PhoneNumber = registerRequest.PhoneNumber
+        };
+
+        var result = await _authService.RegisterAsync(registrationRequest, cancellationToken);
         result.OnFailure(() =>
                 Log(LogLevel.Error, AuthControllerEventIds.RegisterFailed,
                     "Registration failed for email: {Email}. Error: {Error}",
@@ -363,9 +371,15 @@ public class AuthController : BaseController<AuthController>
             NormalizedEmail = registerRequest.Email.ToUpper(),
             Role = Role.Admin,
         };
-
-        var result = await _authService.RegisterAsync(user, registerRequest.Password,
-            registerRequest.PhoneNumber, registerRequest.FirstName, registerRequest.LastName, cancellationToken);
+        var registrationRequest = new Services.Auth.RegistrationRequest
+        {
+            User = user,
+            FirstName = registerRequest.FirstName,
+            LastName = registerRequest.LastName,
+            Password = registerRequest.Password,
+            PhoneNumber = registerRequest.PhoneNumber
+        };
+        var result = await _authService.RegisterAsync(registrationRequest, cancellationToken);
         result.OnFailure(() =>
                 Log(LogLevel.Error, AuthControllerEventIds.CreateAdminFailed,
                     "Admin creation failed for email: {Email}. Error: {Error}",
@@ -410,8 +424,15 @@ public class AuthController : BaseController<AuthController>
             Role = Role.Owner,
         };
 
-        var result = await _authService.RegisterAsync(user, registerRequest.Password,
-            registerRequest.PhoneNumber, registerRequest.FirstName, registerRequest.LastName, cancellationToken);
+        var registrationRequest = new Services.Auth.RegistrationRequest
+        {
+            User = user,
+            FirstName = registerRequest.FirstName,
+            LastName = registerRequest.LastName,
+            Password = registerRequest.Password,
+            PhoneNumber = registerRequest.PhoneNumber
+        };
+        var result = await _authService.RegisterAsync(registrationRequest, cancellationToken);
         result.OnFailure(() =>
                 Log(LogLevel.Error, AuthControllerEventIds.CreateAdminFailed,
                     "Admin creation failed for email: {Email}. Error: {Error}",

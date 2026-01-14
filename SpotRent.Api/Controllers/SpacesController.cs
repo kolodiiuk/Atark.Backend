@@ -86,6 +86,8 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     [HttpGet]
+    [EndpointSummary("Filters spaces")]
+    [EndpointDescription("Supports filtering by attributes such as type, capacity, rates, and city while honoring pagination and sorting parameters.")]
     public async Task<IActionResult> GetSpaces(
         [FromQuery(Name = "spaceType")] SpaceType? spaceType,
         [FromQuery(Name = "minCapacity")] int? minCapacity,
@@ -180,6 +182,9 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [HttpGet("{id:int}")]
+    [EndpointSummary("Gets a single space by ID")]
+    [EndpointDescription("Validates the space ID, loads the space with related data, and returns it or appropriate status when missing.")]
     public async Task<IActionResult> GetSpace(int id, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -220,6 +225,8 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [EndpointSummary("Lists available spaces for a time range in a city")]
+    [EndpointDescription("Checks the requested city and dates (required), queries availability, and returns spaces free during the specified interval.")]
     public async Task<IActionResult> GetAvailableSpaces(
         [FromQuery] DateTime startTime,
         [FromQuery] DateTime endTime,
@@ -262,6 +269,9 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [HttpGet("{id:int}/schedule")]
+    [EndpointSummary("Gets the booking schedule for a space")]
+    [EndpointDescription("Validates identifiers and date range, then returns the calendar of bookings for the requested space.")]
     public async Task<IActionResult> GetSpaceSchedule(int id, [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate, CancellationToken cancellationToken)
     {
@@ -311,6 +321,11 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [HttpPut("{id:int}")]
+    [EndpointSummary("Updates an existing space")]
+    [EndpointDescription("Accepts the edited space details, validates identifiers, and updates the stored space record.")]
     public async Task<IActionResult> UpdateSpace(int id, UpdateSpaceDto spaceDto, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -370,6 +385,10 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [HttpDelete("{id:int}")]
+    [EndpointSummary("Deletes a space")]
+    [EndpointDescription("Validates the provided space identifier and removes the associated space if it exists.")]
     public async Task<IActionResult> DeleteSpace(int id, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

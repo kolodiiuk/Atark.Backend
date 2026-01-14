@@ -14,8 +14,7 @@ public interface IAuthService
     Task<Result<GoogleJsonWebSignature.Payload>> ValidateGoogleSignInRequestAsync(string idToken,
         CancellationToken cancellationToken);
 
-    Task<Result> RegisterAsync(User user, string password, string phoneNumber, string firstName, string lastName,
-        CancellationToken cancellationToken);
+    Task<Result> RegisterAsync(RegistrationRequest registrationRequest, CancellationToken cancellationToken);
 
     Task<Result<RefreshTokenResponse>> RefreshTokenAsync(string token, CancellationToken cancellationToken);
 

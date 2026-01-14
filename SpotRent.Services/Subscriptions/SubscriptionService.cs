@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using System.Transactions;
-using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;

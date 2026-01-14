@@ -36,26 +36,25 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
-    public async Task<Result> RegisterAsync(User user, string password,
-        string phoneNumber, string firstName, string lastName, CancellationToken cancellationToken)
+    public async Task<Result> RegisterAsync(RegistrationRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        user.PhoneNumber = phoneNumber ?? "";
-        user.UserName = user.Email;
-        user.FirstName = firstName;
-        user.LastName = lastName;
+        request.User.PhoneNumber = request.PhoneNumber ?? "";
+        request.User.UserName = request.User.Email;
+        request.User.FirstName = request.FirstName;
+        request.User.LastName = request.LastName;
 
         try
         {
-            var result = await _userManager.CreateAsync(user, password);
+            var result = await _userManager.CreateAsync(request.User, request.Password);
             if (!result.Succeeded)
             {
                 return Result.Fail($"Failed to create a user: {string.Join(", ",
                     result.Errors.Select(e => e.Description))}");
             }
 
-            var roleResult = await _userManager.AddToRoleAsync(user, user.Role.ToString());
+            var roleResult = await _userManager.AddToRoleAsync(request.User, request.User.Role.ToString());
             if (!roleResult.Succeeded)
             {
                 return Result.Fail(
