@@ -29,8 +29,10 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [EndpointSummary("Creates a new subscription plan.")]
     [EndpointDescription("Validates the incoming plan payload and persists it as a subscription plan definition.")]
-    public async Task<ActionResult> CreateSubscriptionPlanAsync([FromBody] CreateSubscriptionPlanDto subscriptionDto)
+    public async Task<ActionResult> CreateSubscriptionPlanAsync([FromBody] CreateSubscriptionPlanDto subscriptionDto, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var ownerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         if (string.IsNullOrEmpty(ownerId))
@@ -43,7 +45,7 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
         var isParsed = int.TryParse(ownerId, out var parsedOwnerId);
         if (isParsed)
         {
-            var result = await _subscriptionPlanService.CreateSubscriptionPlanAsync(parsedOwnerId, subscriptionDto);
+            var result = await _subscriptionPlanService.CreateSubscriptionPlanAsync(parsedOwnerId, subscriptionDto, cancellationToken);
             if (result.Failure)
             {
                 return StatusCode(StatusCodes.Status400BadRequest, result.Error);
@@ -60,9 +62,11 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [EndpointSummary("Lists all subscription plans.")]
     [EndpointDescription("Retrieves every subscription plan.")]
-    public async Task<IActionResult> GetPlansAsync()
+    public async Task<IActionResult> GetPlansAsync(CancellationToken cancellationToken)
     {
-        var result = await _subscriptionPlanService.GetPlansAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var result = await _subscriptionPlanService.GetPlansAsync(cancellationToken);
         if (result.Failure)
         {
             return StatusCode(StatusCodes.Status400BadRequest, result.Error);
@@ -76,9 +80,11 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [EndpointSummary("Gets a subscription plan by id.")]
     [EndpointDescription("Fetches the plan details for the provided identifier or returns an error if unavailable.")]
-    public async Task<IActionResult> GetPlanByIdAsync(int id)
+    public async Task<IActionResult> GetPlanByIdAsync(int id, CancellationToken cancellationToken)
     {
-        var result = await _subscriptionPlanService.GetPlanByIdAsync(id);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var result = await _subscriptionPlanService.GetPlanByIdAsync(id, cancellationToken);
         if (result.Failure)
         {
             return StatusCode(StatusCodes.Status400BadRequest, result.Error);
@@ -96,8 +102,10 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
     [EndpointDescription(
         "Logs the update attempt, validates payload data, and updates the specified subscription plan.")]
     public async Task<ActionResult> UpdateSubscriptionPlanAsync(int id,
-        [FromBody] UpdateSubscriptionPlanDto subscriptionPlanDto)
+        [FromBody] UpdateSubscriptionPlanDto subscriptionPlanDto, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (id < 1 || subscriptionPlanDto is null)
         {
             return StatusCode(StatusCodes.Status400BadRequest, "Invalid request data");
@@ -119,7 +127,7 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
                 "Updating subscription plan with id {subscriptionPlanId}.", id);
 
             var result = await _subscriptionPlanService.UpdateSubscriptionPlanAsync(
-                id, subscriptionPlanDto, parsedOwnerId);
+                id, subscriptionPlanDto, parsedOwnerId, cancellationToken);
 
 
             result
@@ -148,8 +156,10 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [EndpointSummary("Deletes a subscription plan.")]
     [EndpointDescription("Validates the identifier, logs the outcome, and removes the subscription plan if possible.")]
-    public async Task<IActionResult> DeleteSubscriptionPlanAsync(int subscriptionPlanId)
+    public async Task<IActionResult> DeleteSubscriptionPlanAsync(int subscriptionPlanId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (subscriptionPlanId < 1)
         {
             return StatusCode(StatusCodes.Status400BadRequest, "Id is less than 1");
@@ -178,7 +188,7 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
             return StatusCode(StatusCodes.Status401Unauthorized);
         }
 
-        var result = await _subscriptionPlanService.DeleteSubscriptionPlanAsync(subscriptionPlanId);
+        var result = await _subscriptionPlanService.DeleteSubscriptionPlanAsync(subscriptionPlanId, cancellationToken);
 
         result
             .OnSuccess(() => Log(
@@ -205,8 +215,10 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [EndpointSummary("Deactivates a subscription plan.")]
     [EndpointDescription("Attempts to deactivate the specified plan while logging success or failure details.")]
-    public async Task<IActionResult> DeactivateSubscriptionPlanAsync(int subscriptionPlanId)
+    public async Task<IActionResult> DeactivateSubscriptionPlanAsync(int subscriptionPlanId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (subscriptionPlanId < 1)
         {
             return StatusCode(StatusCodes.Status400BadRequest, "Id is less than 1");
@@ -228,7 +240,7 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
         var isParsed = int.TryParse(ownerId, out _);
         if (isParsed)
         {
-            var result = await _subscriptionPlanService.DeactivateSubscriptionPlanAsync(subscriptionPlanId);
+            var result = await _subscriptionPlanService.DeactivateSubscriptionPlanAsync(subscriptionPlanId, cancellationToken);
 
             result.OnSuccess(() => Log(
                     LogLevel.Information, SubscriptionPlanControllerEventIds.DeactivateSubscriptionPlanEvent,

@@ -6,19 +6,22 @@ namespace SpotRent.Services.Interfaces;
 
 public interface ISpaceService
 {
-    Task<Result<IEnumerable<Space>>> FilterSpacesAsync(SpaceFilterRequest req);
+    Task<Result<IEnumerable<Space>>> FilterSpacesAsync(SpaceFilterRequest req, CancellationToken cancellationToken);
 
-    Task<Result<Space>> GetSpaceByIdAsync(int id);
+    Task<Result<Space>> GetSpaceByIdAsync(int id, CancellationToken cancellationToken);
 
-    Task<Result<IEnumerable<Space>>> GetAvailableSpacesAsync(DateTime startTime, DateTime endTime, string city);
+    Task<Result<IEnumerable<Space>>> GetAvailableSpacesAsync(DateTime startTime, DateTime endTime, string city,
+        CancellationToken cancellationToken);
 
-    Task<Result<Space>> CreateSpaceAsync(Space space);
+    Task<Result<Space>> CreateSpaceAsync(Space space, CancellationToken cancellationToken);
 
-    Task<Result> UpdateSpaceAsync(Space space, int ownerId);
+    Task<Result> UpdateSpaceAsync(Space space, int ownerId, CancellationToken cancellationToken);
 
-    Task<Result> DeleteSpaceAsync(int id, int ownerId);
+    Task<Result> DeleteSpaceAsync(int id, int ownerId, CancellationToken cancellationToken);
 
-    Task<Result<bool>> IsSpaceAvailableAsync(int workspaceId, DateTime startTime, DateTime endTime);
+    Task<Result<bool>> IsSpaceAvailableAsync(int workspaceId, DateTime startTime, DateTime endTime,
+        CancellationToken cancellationToken);
 
-    Task<Result<SpaceSchedule>> GetSpaceScheduleAsync(int spaceId, DateTime? startDate, DateTime? endDate);
+    Task<Result<SpaceSchedule>> GetSpaceScheduleAsync(int spaceId, DateTime? startDate, DateTime? endDate,
+        CancellationToken cancellationToken);
 }

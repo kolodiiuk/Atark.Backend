@@ -34,8 +34,10 @@ public class BookingsController : BaseController<BookingsController>
     [EndpointSummary("Creates a new booking for a user.")]
     [EndpointDescription(
         "Validates the booking payload for the specified user and persists the reservation when the request is valid.")]
-    public async Task<IActionResult> CreateBooking(CreateBookingRequest request)
+    public async Task<IActionResult> CreateBooking(CreateBookingRequest request, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (!request.IsValid())
         {
             Log(LogLevel.Warning, BookingsControllerEventIds.CreateBookingInvalid,
@@ -62,7 +64,7 @@ public class BookingsController : BaseController<BookingsController>
             Log(LogLevel.Information, BookingsControllerEventIds.CreateBookingAttempt,
                 "Create booking attempt for user {UserId}", userId);
 
-            var result = await _bookingService.CreateBookingAsync(parsedUserId, request);
+            var result = await _bookingService.CreateBookingAsync(parsedUserId, request, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, BookingsControllerEventIds.CreateBookingSuccess,
                         "Successfully created booking"))
@@ -87,8 +89,10 @@ public class BookingsController : BaseController<BookingsController>
     [EndpointSummary("Gets the historical bookings for a user.")]
     [EndpointDescription(
         "Validates the user identifier and returns the full booking history including pagination metadata.")]
-    public async Task<IActionResult> GetUserBookingsHistory()
+    public async Task<IActionResult> GetUserBookingsHistory(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         Log(LogLevel.Information, AuthControllerEventIds.TokenVerificationAttempt,
             "User bookings history fetching attempt for user ID: {UserId}", userId);
@@ -107,7 +111,7 @@ public class BookingsController : BaseController<BookingsController>
             Log(LogLevel.Information, BookingsControllerEventIds.GetUserBookingsHistoryAttempt,
                 "Get user bookings history attempt for user {UserId}", userId);
 
-            var result = await _bookingService.GetUserBookingsHistoryAsync(parsedUserId);
+            var result = await _bookingService.GetUserBookingsHistoryAsync(parsedUserId, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, BookingsControllerEventIds.GetUserBookingsHistorySuccess,
                         "Successfully retrieved user bookings history"))
@@ -152,8 +156,10 @@ public class BookingsController : BaseController<BookingsController>
     [EndpointSummary("Lists active bookings for a user.")]
     [EndpointDescription(
         "Returns all in-progress or upcoming bookings for the specified user after validating the identifier.")]
-    public async Task<IActionResult> GetUserActiveBookings()
+    public async Task<IActionResult> GetUserActiveBookings(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         Log(LogLevel.Information, AuthControllerEventIds.TokenVerificationAttempt,
             "User active bookings history fetching attempt for user ID: {UserId}", userId);
@@ -172,7 +178,7 @@ public class BookingsController : BaseController<BookingsController>
             Log(LogLevel.Information, BookingsControllerEventIds.GetUserActiveBookingsAttempt,
                 "Get user active bookings attempt for user {UserId}", userId);
 
-            var result = await _bookingService.GetUserActiveBookingsAsync(parsedUserId);
+            var result = await _bookingService.GetUserActiveBookingsAsync(parsedUserId, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, BookingsControllerEventIds.GetUserActiveBookingsSuccess,
                         "Successfully retrieved user active bookings"))
@@ -217,8 +223,10 @@ public class BookingsController : BaseController<BookingsController>
     [EndpointSummary("Gets bookings for an owner across their spaces.")]
     [EndpointDescription(
         "Retrieves every booking tied to the owner's spaces after confirming the owner identifier is valid.")]
-    public async Task<IActionResult> GetOwnerBookings()
+    public async Task<IActionResult> GetOwnerBookings(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         Log(LogLevel.Information, AuthControllerEventIds.TokenVerificationAttempt,
             "Owner bookings history fetching attempt for user ID: {UserId}", userId);
@@ -237,7 +245,7 @@ public class BookingsController : BaseController<BookingsController>
             Log(LogLevel.Information, BookingsControllerEventIds.GetOwnerBookingsAttempt,
                 "Get owner bookings attempt for owner {OwnerId}", parsedUserId);
 
-            var result = await _bookingService.GetOwnerBookingsAsync(parsedUserId);
+            var result = await _bookingService.GetOwnerBookingsAsync(parsedUserId, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, BookingsControllerEventIds.GetOwnerBookingsSuccess,
                         "Successfully retrieved owner bookings"))
@@ -282,8 +290,10 @@ public class BookingsController : BaseController<BookingsController>
     [EndpointSummary("Gets active bookings for an owner.")]
     [EndpointDescription(
         "Returns only active bookings associated with the owner's spaces once the owner ID is validated.")]
-    public async Task<IActionResult> GetOwnerActiveBookings()
+    public async Task<IActionResult> GetOwnerActiveBookings(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         Log(LogLevel.Information, AuthControllerEventIds.TokenVerificationAttempt,
             "Owner active bookings history fetching attempt for user ID: {UserId}", userId);
@@ -302,7 +312,7 @@ public class BookingsController : BaseController<BookingsController>
             Log(LogLevel.Information, BookingsControllerEventIds.GetOwnerBookingsAttempt,
                 "Get owner active bookings attempt for owner {OwnerId}", parsedUserId);
 
-            var result = await _bookingService.GetOwnerActiveBookingsAsync(parsedUserId);
+            var result = await _bookingService.GetOwnerActiveBookingsAsync(parsedUserId, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, BookingsControllerEventIds.GetOwnerBookingsSuccess,
                         "Successfully retrieved owner active bookings"))
@@ -356,8 +366,11 @@ public class BookingsController : BaseController<BookingsController>
         [FromQuery] PaymentStatus paymentStatus,
         [FromQuery] string sort,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var requesterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         Log(LogLevel.Information, AuthControllerEventIds.TokenVerificationAttempt,
             "Booking filtering attempt for user ID: {UserId}", requesterId);
@@ -395,7 +408,7 @@ public class BookingsController : BaseController<BookingsController>
                 OrderBy = orderBy,
                 SkipCount = skipCount,
                 TakeCount = takeCount
-            });
+            }, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, BookingsControllerEventIds.GetBookingsSuccess,
                         "Successfully retrieved bookings"))
@@ -432,8 +445,10 @@ public class BookingsController : BaseController<BookingsController>
     [HttpGet("{id:int}")]
     [EndpointSummary("Retrieves booking details by identifier.")]
     [EndpointDescription("Validates the booking ID, loads the booking from storage, and returns its details if found.")]
-    public async Task<IActionResult> GetBooking(int id)
+    public async Task<IActionResult> GetBooking(int id, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var requesterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         Log(LogLevel.Information, AuthControllerEventIds.TokenVerificationAttempt,
             "Booking fetching by id attempt for user ID: {UserId}", requesterId);
@@ -459,7 +474,7 @@ public class BookingsController : BaseController<BookingsController>
                 return StatusCode(StatusCodes.Status400BadRequest, "Id is not valid");
             }
 
-            var result = await _bookingService.GetBookingByIdAsync(id, parsedUserId);
+            var result = await _bookingService.GetBookingByIdAsync(id, parsedUserId, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, BookingsControllerEventIds.GetBookingSuccess,
                         "Successfully retrieved booking"))
@@ -484,8 +499,10 @@ public class BookingsController : BaseController<BookingsController>
     [HttpPut("{id:int}")]
     [EndpointSummary("Cancels a booking.")]
     [EndpointDescription("Intended to cancel the specified booking; currently returns a placeholder response.")]
-    public async Task<IActionResult> CancelBooking(int id)
+    public async Task<IActionResult> CancelBooking(int id, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, BookingsControllerEventIds.CancelBookingAttempt,
             "Cancel booking attempt for ID {Id}", id);
 

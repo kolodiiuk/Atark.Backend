@@ -37,8 +37,10 @@ public class AuthService : IAuthService
     }
 
     public async Task<Result> RegisterAsync(User user, string password,
-        string phoneNumber, string firstName, string lastName)
+        string phoneNumber, string firstName, string lastName, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         user.PhoneNumber = phoneNumber ?? "";
         user.UserName = user.Email;
         user.FirstName = firstName;
@@ -63,6 +65,10 @@ public class AuthService : IAuthService
 
             return Result.Success();
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail("Operation cancelled");
+        }
         catch (Exception e)
         {
             Console.WriteLine(e);
@@ -70,12 +76,15 @@ public class AuthService : IAuthService
         }
     }
 
-    public async Task<Result<User>> ValidateUserCredentials(string email, string password)
+    public async Task<Result<User>> ValidateUserCredentials(string email, string password,
+        CancellationToken cancellationToken)
     {
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == email);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        if (user == null || !(await VerifyPasswordAsync(user, password)))
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+
+        if (user == null || !(await VerifyPasswordAsync(user, password, cancellationToken)))
         {
             return Result.Fail<User>("Invalid email or password");
         }
@@ -83,8 +92,10 @@ public class AuthService : IAuthService
         return Result.Success(user);
     }
 
-    public async Task<(string token, string refreshToken)> GenerateTokens(User user)
+    public async Task<(string token, string refreshToken)> GenerateTokens(User user, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var token = _jwtService.GenerateToken(user);
         var refreshToken = _jwtService.GenerateRefreshToken();
 
@@ -103,13 +114,16 @@ public class AuthService : IAuthService
             .Where(rt => rt.UserId == user.Id && rt.Expires < DateTime.UtcNow);
         _context.UserRefreshTokens.RemoveRange(oldTokens);
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
 
         return new ValueTuple<string, string>(token, refreshToken);
     }
 
-    public async Task<Result<GoogleJsonWebSignature.Payload>> ValidateGoogleSignInRequestAsync(string idToken)
+    public async Task<Result<GoogleJsonWebSignature.Payload>> ValidateGoogleSignInRequestAsync(string idToken,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         GoogleJsonWebSignature.Payload payload;
         try
         {
@@ -118,6 +132,10 @@ public class AuthService : IAuthService
                 {
                     Audience = new[] { _configuration["GoogleAuth:ClientId"] }
                 });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail<GoogleJsonWebSignature.Payload>("Operation cancelled");
         }
         catch (Exception ex)
         {
@@ -135,7 +153,7 @@ public class AuthService : IAuthService
             return Result.Fail<GoogleJsonWebSignature.Payload>("Invalid token issuer");
         }
 
-        if (payload.EmailVerified == null || payload.EmailVerified == false)
+        if (!payload.EmailVerified)
         {
             return Result.Fail<GoogleJsonWebSignature.Payload>("Email not verified by Google");
         }
@@ -143,8 +161,11 @@ public class AuthService : IAuthService
         return Result.Success(payload);
     }
 
-    public async Task<Result<User>> GetOrCreateUser(string payloadEmail, string payloadName, string payloadSubject)
+    public async Task<Result<User>> GetOrCreateUser(string payloadEmail, string payloadName, string payloadSubject,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrEmpty(payloadSubject) || string.IsNullOrEmpty(payloadEmail))
         {
             return Result.Fail<User>("Invalid Google payload");
@@ -159,12 +180,12 @@ public class AuthService : IAuthService
         user = await _userManager.FindByEmailAsync(payloadEmail);
         if (user != null)
         {
-            var fixResult = await FixLoginInUserManager(payloadSubject, user);
+            var fixResult = await FixLoginInUserManager(payloadSubject, user, cancellationToken);
 
             return fixResult.Failure ? Result.Fail<User>(fixResult.Error) : Result.Success(user);
         }
 
-        var userCreateResult = await CreateNewUser(payloadEmail, payloadName, payloadSubject);
+        var userCreateResult = await CreateNewUser(payloadEmail, payloadName, payloadSubject, cancellationToken);
         if (userCreateResult.Failure)
         {
             return Result.Fail<User>(userCreateResult.Error);
@@ -181,11 +202,13 @@ public class AuthService : IAuthService
         return Result.Success(userCreateResult.Value);
     }
 
-    public async Task<Result<RefreshTokenResponse>> RefreshTokenAsync(string token)
+    public async Task<Result<RefreshTokenResponse>> RefreshTokenAsync(string token, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var storedRefreshToken = await _context.UserRefreshTokens
             .Include(rt => rt.User)
-            .FirstOrDefaultAsync(rt => rt.Token == token && rt.Expires > DateTime.UtcNow);
+            .FirstOrDefaultAsync(rt => rt.Token == token && rt.Expires > DateTime.UtcNow, cancellationToken);
 
         if (storedRefreshToken == null)
         {
@@ -212,7 +235,7 @@ public class AuthService : IAuthService
             CreatedByIp = GetIpAddress()
         };
         _context.UserRefreshTokens.Add(userRefreshToken);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
 
         return Result.Success(new RefreshTokenResponse
         {
@@ -225,16 +248,18 @@ public class AuthService : IAuthService
         });
     }
 
-    public async Task<Result> LogoutAsync(string token)
+    public async Task<Result> LogoutAsync(string token, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var refreshToken = await _context.UserRefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == token);
+            .FirstOrDefaultAsync(rt => rt.Token == token, cancellationToken);
 
         if (refreshToken != null)
         {
             refreshToken.Revoked = DateTime.UtcNow;
             refreshToken.RevokedByIp = GetIpAddress();
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
         }
         else
         {
@@ -244,11 +269,13 @@ public class AuthService : IAuthService
         return Result.Success();
     }
 
-    public async Task<Result<User>> GetUserAsync(int userId)
+    public async Task<Result<User>> GetUserAsync(int userId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var user = await _context.Users
             .Where(u => u.Id == userId)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(cancellationToken);
         if (user == null)
         {
             return Result.Fail<User>("User is not found");
@@ -257,8 +284,12 @@ public class AuthService : IAuthService
         return Result.Success(user);
     }
 
-    private async Task<bool> VerifyPasswordAsync(User user, string password)
-        => await _userManager.CheckPasswordAsync(user, password);
+    private async Task<bool> VerifyPasswordAsync(User user, string password, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return await _userManager.CheckPasswordAsync(user, password);
+    }
 
     private string GetIpAddress()
     {
@@ -276,8 +307,10 @@ public class AuthService : IAuthService
         return context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "0";
     }
 
-    private async Task<Result<User>> CreateNewUser(string payloadEmail, string payloadName, string payloadSubject)
+    private async Task<Result<User>> CreateNewUser(string payloadEmail, string payloadName, string payloadSubject, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var newUser1 = new User
         {
             GoogleId = payloadSubject,
@@ -301,8 +334,10 @@ public class AuthService : IAuthService
         return Result.Success(newUser1);
     }
 
-    private async Task<Result> FixLoginInUserManager(string payloadSubject, User user)
+    private async Task<Result> FixLoginInUserManager(string payloadSubject, User user, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var loginInfo = new UserLoginInfo("Google", payloadSubject, "Google");
         var addLoginResult = await _userManager.AddLoginAsync(user, loginInfo);
         if (!addLoginResult.Succeeded && addLoginResult.Errors.Any())

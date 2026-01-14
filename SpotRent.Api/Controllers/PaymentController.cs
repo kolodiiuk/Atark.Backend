@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using SpotRent.Api.Dtos;
 using SpotRent.Services.Interfaces;
 using SpotRent.Services.Payment;
 using LiqPayResponse = SpotRent.Services.Payment.LiqPayResponse;
@@ -24,11 +22,15 @@ public class PaymentController : ControllerBase
     [HttpPost("callback")]
     [Consumes("application/x-www-form-urlencoded")]
     [EndpointSummary("Processes LiqPay payment callbacks.")]
-    [EndpointDescription("Validates the callback signature, decodes the payload, and updates subscription payment status based on LiqPay response data.")]
-    public async Task<IActionResult> PaymentCallback([FromForm] LiqPayCallback callback)
+    [EndpointDescription(
+        "Validates the callback signature, decodes the payload, and updates subscription payment status based on LiqPay response data.")]
+    public async Task<IActionResult> PaymentCallback([FromForm] LiqPayCallback callback,
+        CancellationToken cancellationToken)
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (!_liqPayHelper.VerifyCallback(callback.data, callback.signature))
             {
                 return BadRequest("Invalid signature");
@@ -41,27 +43,34 @@ public class PaymentController : ControllerBase
                 switch (response.status)
                 {
                     case "success":
-                        await _paymentService.UpdatePaymentStatusSubscriptionAsync(paymentId, response.transaction_id, "Paid");
+                        await _paymentService.UpdatePaymentStatusSubscriptionAsync(paymentId, response.transaction_id,
+                            "Paid", cancellationToken);
                         break;
                     case "failure":
                     case "error":
-                        await _paymentService.UpdatePaymentStatusSubscriptionAsync(paymentId, response.transaction_id, "Failed");
+                        await _paymentService.UpdatePaymentStatusSubscriptionAsync(paymentId, response.transaction_id,
+                            "Failed", cancellationToken);
                         break;
                     case "sandbox":
-                        await _paymentService.UpdatePaymentStatusSubscriptionAsync(paymentId, response.transaction_id, "TestPaid");
+                        await _paymentService.UpdatePaymentStatusSubscriptionAsync(paymentId, response.transaction_id,
+                            "TestPaid", cancellationToken);
                         break;
                 }
             }
             else
             {
-                return StatusCode(500);
+                return StatusCode(StatusCodes.Status500InternalServerError);
             }
 
             return Ok();
         }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(StatusCodes.Status499ClientClosedRequest);
+        }
         catch (Exception)
         {
-            return StatusCode(500);
+            return StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
 }

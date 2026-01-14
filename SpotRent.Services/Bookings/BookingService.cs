@@ -31,34 +31,38 @@ public class BookingService : BaseService<BookingService>, IBookingService
         _spaceService = spaceService;
     }
 
-    public async Task<Result<BookingCreationResponse>> CreateBookingAsync(int userId, CreateBookingRequest req)
+    public async Task<Result<BookingCreationResponse>> CreateBookingAsync(int userId, CreateBookingRequest req,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
         Space space;
         try
         {
-            var userExists = await Context.Users.AnyAsync(u => u.Id == userId);
+            var userExists = await Context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
             if (!userExists)
             {
                 return Result.Fail<BookingCreationResponse>("No user with specified id");
             }
 
-            space = await Context.Spaces.FindAsync(req.SpaceId);
+            space = await Context.Spaces.FindAsync(new object[] { req.SpaceId }, cancellationToken);
             if (space is null)
             {
                 return Result.Fail<BookingCreationResponse>($"Space with id {req.SpaceId} doesn't exist");
             }
 
             var isSpaceAvailableRes =
-                await _spaceService.IsSpaceAvailableAsync(req.SpaceId, req.StartTime, req.EndTime);
+                await _spaceService.IsSpaceAvailableAsync(req.SpaceId, req.StartTime, req.EndTime, cancellationToken);
             if (!isSpaceAvailableRes.IsSuccess || !isSpaceAvailableRes.Value)
             {
                 return Result.Fail<BookingCreationResponse>($"Space with id {req.SpaceId} is not available");
             }
 
             var now = DateTime.UtcNow;
-            var subscription = await Context.Subscriptions.Include(s => s.SubscriptionPlan).FirstOrDefaultAsync(
-                IsActive(userId, space.OwnerId, now));
+            var subscription = await Context.Subscriptions
+                .Include(s => s.SubscriptionPlan)
+                .FirstOrDefaultAsync(IsActive(userId, space.OwnerId, now), cancellationToken);
             if (subscription != null)
             {
                 var timeDiff = req.EndTime - req.StartTime;
@@ -82,7 +86,8 @@ public class BookingService : BaseService<BookingService>, IBookingService
             Result<LiqPayPaymentData> paymentDataResult = null;
             if (subscription == null)
             {
-                paymentDataResult = await _paymentService.CreatePaymentAsync(booking.Id, booking.TotalAmount);
+                paymentDataResult =
+                    await _paymentService.CreatePaymentAsync(booking.Id, booking.TotalAmount, cancellationToken);
                 if (paymentDataResult.Failure)
                 {
                     return Result.Fail<BookingCreationResponse>($"{paymentDataResult.Error}");
@@ -106,6 +111,10 @@ public class BookingService : BaseService<BookingService>, IBookingService
 
             return Result.Fail<BookingCreationResponse>($"DB error: {e.Message}.");
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail<BookingCreationResponse>("Operation cancelled");
+        }
         catch (Exception e)
         {
             Log(LogLevel.Error, BookingServiceEventIds.GetBookingById,
@@ -116,6 +125,8 @@ public class BookingService : BaseService<BookingService>, IBookingService
 
         async Task<Booking> CreateBooking()
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var now = DateTime.UtcNow;
             var hours = Convert.ToDecimal((req.EndTime - req.StartTime).TotalHours);
 
@@ -134,19 +145,22 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 CancelledAt = null
             };
 
-            await Context.AddAsync(booking);
-            await Context.SaveChangesAsync();
+            await Context.AddAsync(booking, cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
 
             return booking;
         }
     }
 
 
-    public async Task<Result<IEnumerable<Booking>>> GetUserBookingsHistoryAsync(int userId)
+    public async Task<Result<IEnumerable<Booking>>> GetUserBookingsHistoryAsync(int userId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var userExists = await Context.Users.AnyAsync(u => u.Id == userId);
+            var userExists = await Context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
             if (!userExists)
             {
                 return Result.Fail<IEnumerable<Booking>>("No user with specified id");
@@ -156,7 +170,7 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 .Include(b => b.Space)
                 .ThenInclude(s => s.Address)
                 .Where(b => b.UserId == userId)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<Booking>>(history);
         }
@@ -167,6 +181,10 @@ public class BookingService : BaseService<BookingService>, IBookingService
 
             return Result.Fail<IEnumerable<Booking>>($"DB error: {e.Message}.");
         }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<IEnumerable<Booking>>("Operation cancelled");
+        }
         catch (Exception e)
         {
             Log(LogLevel.Error, BookingServiceEventIds.GetBookingById,
@@ -176,11 +194,14 @@ public class BookingService : BaseService<BookingService>, IBookingService
         }
     }
 
-    public async Task<Result<IEnumerable<Booking>>> GetUserActiveBookingsAsync(int userId)
+    public async Task<Result<IEnumerable<Booking>>> GetUserActiveBookingsAsync(int userId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var userExists = await Context.Users.AnyAsync(u => u.Id == userId);
+            var userExists = await Context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
             if (!userExists)
             {
                 return Result.Fail<IEnumerable<Booking>>("No user with specified id");
@@ -192,7 +213,7 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 .Include(b => b.Space)
                 .ThenInclude(s => s.Address)
                 .AsNoTracking()
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<Booking>>(history);
         }
@@ -203,20 +224,27 @@ public class BookingService : BaseService<BookingService>, IBookingService
 
             return Result.Fail<IEnumerable<Booking>>($"DB error: {e.Message}.");
         }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<IEnumerable<Booking>>("Operation cancelled");
+        }
         catch (Exception e)
         {
             Log(LogLevel.Error, BookingServiceEventIds.GetBookingById,
                 "Error getting booking {userId}. Error: {error}", userId, e.Message);
 
-            return Result.Fail<IEnumerable<Booking>>($"Failure getting booking: {e.Message}");
+            return Result.Fail<IEnumerable<Booking>>($"Failure getting bookings: {e.Message}");
         }
     }
 
-    public async Task<Result<IEnumerable<Booking>>> GetOwnerBookingsAsync(int ownerId)
+    public async Task<Result<IEnumerable<Booking>>> GetOwnerBookingsAsync(int ownerId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var ownerExists = await Context.Users.AnyAsync(u => u.Id == ownerId);
+            var ownerExists = await Context.Users.AnyAsync(u => u.Id == ownerId, cancellationToken);
             if (!ownerExists)
             {
                 return Result.Fail<IEnumerable<Booking>>("No owner with specified id");
@@ -226,7 +254,7 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 .Include(b => b.Space)
                 .ThenInclude(s => s.Address)
                 .Where(b => b.Space.OwnerId == ownerId)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<Booking>>(history);
         }
@@ -237,6 +265,10 @@ public class BookingService : BaseService<BookingService>, IBookingService
 
             return Result.Fail<IEnumerable<Booking>>($"DB error: {e.Message}.");
         }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<IEnumerable<Booking>>("Operation cancelled");
+        }
         catch (Exception e)
         {
             Log(LogLevel.Error, BookingServiceEventIds.GetBookingById,
@@ -246,11 +278,14 @@ public class BookingService : BaseService<BookingService>, IBookingService
         }
     }
 
-    public async Task<Result<IEnumerable<Booking>>> GetOwnerActiveBookingsAsync(int ownerId)
+    public async Task<Result<IEnumerable<Booking>>> GetOwnerActiveBookingsAsync(int ownerId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var ownerExists = await Context.Users.AnyAsync(u => u.Id == ownerId);
+            var ownerExists = await Context.Users.AnyAsync(u => u.Id == ownerId, cancellationToken);
             if (!ownerExists)
             {
                 return Result.Fail<IEnumerable<Booking>>("No owner with specified id");
@@ -262,7 +297,7 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 .ThenInclude(s => s.Address)
                 .Where(b => b.Space.OwnerId == ownerId && b.EndTime >= now && b.CancelledAt == null)
                 .AsNoTracking()
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<Booking>>(history);
         }
@@ -273,6 +308,10 @@ public class BookingService : BaseService<BookingService>, IBookingService
 
             return Result.Fail<IEnumerable<Booking>>($"DB error: {e.Message}.");
         }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<IEnumerable<Booking>>("Operation cancelled");
+        }
         catch (Exception e)
         {
             Log(LogLevel.Error, BookingServiceEventIds.GetBookingById,
@@ -282,12 +321,15 @@ public class BookingService : BaseService<BookingService>, IBookingService
         }
     }
 
-    public async Task<Result<IEnumerable<Booking>>> GetBookingsAsync(int requesterId, BookingFilterRequest req)
+    public async Task<Result<IEnumerable<Booking>>> GetBookingsAsync(int requesterId, BookingFilterRequest req,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             //todo: check for permission
-            var user = await Context.Users.FindAsync(req.UserId);
+            var user = await Context.Users.FindAsync(new object[] { req.UserId }, cancellationToken);
             Role? parsedRole;
             switch (req.Role)
             {
@@ -312,7 +354,7 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 .ThenInclude(s => s.Address)
                 .Where(BuildCondition());
             req.OrderBy.Invoke(filtered);
-            var resSet = await filtered.Skip(req.SkipCount).Take(req.TakeCount ?? 0).ToListAsync();
+            var resSet = await filtered.Skip(req.SkipCount).Take(req.TakeCount ?? 0).ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<Booking>>(resSet);
         }
@@ -322,6 +364,10 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 "DB error: {error}", e.Message);
 
             return Result.Fail<IEnumerable<Booking>>($"DB error: {e.Message}.");
+        }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<IEnumerable<Booking>>("Operation cancelled");
         }
         catch (Exception e)
         {
@@ -341,15 +387,17 @@ public class BookingService : BaseService<BookingService>, IBookingService
         }
     }
 
-    public async Task<Result<Booking>> GetBookingByIdAsync(int id, int requesterId)
+    public async Task<Result<Booking>> GetBookingByIdAsync(int id, int requesterId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             //todo: check for permission
             var booking = await Context.Bookings
                 .Include(b => b.Space)
                 .ThenInclude(s => s.Address)
-                .FirstOrDefaultAsync(b => b.Id == id);
+                .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
 
             return booking == null
                 ? Result.Fail<Booking>("No booking with specified id")
@@ -362,6 +410,10 @@ public class BookingService : BaseService<BookingService>, IBookingService
 
             return Result.Fail<Booking>($"DB error: {e.Message}.");
         }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<Booking>("Operation cancelled");
+        }
         catch (Exception e)
         {
             Log(LogLevel.Error, BookingServiceEventIds.GetBookingById,
@@ -371,11 +423,13 @@ public class BookingService : BaseService<BookingService>, IBookingService
         }
     }
 
-    public async Task<Result> CancelBookingAsync(int bookingId)
+    public async Task<Result> CancelBookingAsync(int bookingId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var subscription = await Context.Subscriptions.FindAsync(bookingId);
+            var subscription = await Context.Subscriptions.FindAsync(new object[] { bookingId }, cancellationToken);
             if (subscription is null)
             {
                 return Result.Fail<LiqPayRefundResponse>($"No booking with id {bookingId}");
@@ -388,7 +442,7 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 return Result.Fail<LiqPayRefundResponse>($"Booking with id {bookingId} can't be cancelled");
             }
 
-            var result = await _paymentService.RefundPaymentAsync(bookingId);
+            var result = await _paymentService.RefundPaymentAsync(bookingId, cancellationToken);
             result.OnSuccess(() => Serilog.Log.Information("Success refunding payment"))
                 .OnFailure(() => Serilog.Log.Error(result.Error));
 
@@ -399,11 +453,15 @@ public class BookingService : BaseService<BookingService>, IBookingService
 
             subscription.Status = SubscriptionStatus.Cancelled;
             Context.Subscriptions.Update(subscription);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return result.Failure
                 ? Result.Fail<LiqPayRefundResponse>($"Payment refund failed. Reason: {result.Error}")
                 : Result.Success(result.Value);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<LiqPayRefundResponse>("Operation cancelled");
         }
         catch (Exception e)
         {
@@ -416,7 +474,7 @@ public class BookingService : BaseService<BookingService>, IBookingService
         return s => s.UserId == userId
                     && s.SubscriptionPlan.OwnerId == ownerId
                     && s.UserId == userId
-                    && (s.EndDate == null || now < s.EndDate)
+                    && now < s.EndDate
                     && s.CancelledAt == null
                     && (
                         s.PaymentProcessedAt != null ||

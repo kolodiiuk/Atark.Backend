@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Transactions;
+using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -27,27 +28,32 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
         _paymentService = paymentService;
     }
 
-    public async Task<Result<SubscriptionCreationResponse>> SubscribeAsync(int userId, int subscriptionPlanId)
+    public async Task<Result<SubscriptionCreationResponse>> SubscribeAsync(int userId, int subscriptionPlanId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
 
         SubscriptionPlan subscriptionPlan;
         try
         {
-            var user = await Context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(new object[] { userId }, cancellationToken);
             if (user == null)
             {
                 return Result.Fail<SubscriptionCreationResponse>($"No user {userId} specified in order request");
             }
 
-            var existingSubscription = await Context.Subscriptions.FirstOrDefaultAsync(s => s.UserId == userId);
+            var existingSubscription =
+                await Context.Subscriptions.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
             if (existingSubscription is not null)
             {
                 return Result.Fail<SubscriptionCreationResponse>(
                     $"User {userId} is already subscribed. Update subscription instead");
             }
 
-            subscriptionPlan = await Context.SubscriptionPlans.FindAsync(subscriptionPlanId);
+            subscriptionPlan =
+                await Context.SubscriptionPlans.FindAsync(new object[] { subscriptionPlanId }, cancellationToken);
             if (subscriptionPlan is null || !subscriptionPlan.IsActive)
             {
                 return Result.Fail<SubscriptionCreationResponse>(
@@ -60,7 +66,8 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
                 return Result.Fail<SubscriptionCreationResponse>("Invalid duration");
             }
 
-            var paymentDataResult = await _paymentService.CreatePaymentAsync(subscription.Id, subscription.TotalAmount);
+            var paymentDataResult =
+                await _paymentService.CreatePaymentAsync(subscription.Id, subscription.TotalAmount, cancellationToken);
             if (paymentDataResult.Failure)
             {
                 return Result.Fail<SubscriptionCreationResponse>($"{paymentDataResult.Error}");
@@ -90,6 +97,8 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
 
         async Task<Subscription> CreateSubscription()
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var now = DateTime.UtcNow;
             var start = now;
             var end = CalcEndDate(start, subscriptionPlan.Duration);
@@ -115,24 +124,28 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
                 CancelledAt = null
             };
 
-            await Context.AddAsync(subscription);
-            await Context.SaveChangesAsync();
+            await Context.AddAsync(subscription, cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
 
             return subscription;
         }
     }
 
-    public async Task<Result<IEnumerable<SubscriptionDto>>> GetCurrentUserSubscriptionAsync(int userId)
+    public async Task<Result<IEnumerable<SubscriptionDto>>> GetCurrentUserSubscriptionAsync(int userId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var user = await Context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(new object[] { userId }, cancellationToken);
             if (user is null)
             {
                 return Result.Fail<IEnumerable<SubscriptionDto>>($"No user with id: {userId}");
             }
 
-            var subscriptions = Context.Subscriptions.Where(IsActive(userId, DateTime.UtcNow));
+            var subscriptionsQuery = Context.Subscriptions.Where(IsActive(userId, DateTime.UtcNow));
+            var subscriptions = await subscriptionsQuery.ToListAsync(cancellationToken);
 
             var subDtos = new List<SubscriptionDto>();
             foreach (var subscription in subscriptions)
@@ -177,8 +190,11 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
         }
     }
 
-    public async Task<Result<IEnumerable<SubscriptionInfo>>> GetSubscriptionHistoryAsync(int userId)
+    public async Task<Result<IEnumerable<SubscriptionInfo>>> GetSubscriptionHistoryAsync(int userId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var history = await Context.Subscriptions
@@ -194,7 +210,7 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
                     StartedAt = s.StartDate,
                     ExpiresAt = s.EndDate,
                 })
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<SubscriptionInfo>>(history);
         }
@@ -217,14 +233,21 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
         }
     }
 
-    public async Task<Result<Subscription>> GetSubscriptionByIdAsync(int id, int userId)
+    public async Task<Result<Subscription>> GetSubscriptionByIdAsync(int id, int userId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var subscription = await Context.Subscriptions.Include(s => s.SubscriptionPlan)
-                .FirstOrDefaultAsync(s => s.Id == id);
+                .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+
             var userValid = (await Context.Users.FirstOrDefaultAsync(u =>
-                subscription.UserId == userId || subscription.SubscriptionPlan.OwnerId == userId)) != null;
+                                subscription.UserId == userId || subscription.SubscriptionPlan.OwnerId == userId,
+                            cancellationToken)) !=
+                            null;
+
             if (!userValid)
             {
                 return Result.Fail<Subscription>("User does not have access to this subscription");
@@ -252,17 +275,21 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
         }
     }
 
-    public async Task<Result> ChangeSubscriptionAsync(int currSubscriptionId, int newPlanId, int userId)
+    public async Task<Result> ChangeSubscriptionAsync(int currSubscriptionId, int newPlanId, int userId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var user = await Context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(new object[] { userId }, cancellationToken);
             if (user is null)
             {
                 return Result.Fail($"No user with id {userId}");
             }
 
-            var subscription = await Context.Subscriptions.FindAsync(currSubscriptionId);
+            var subscription =
+                await Context.Subscriptions.FindAsync(new object[] { currSubscriptionId }, cancellationToken);
             if (subscription is null || subscription.UserId != userId)
             {
                 return Result.Fail($"No subscription with id {currSubscriptionId}");
@@ -270,7 +297,7 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
 
             subscription.SubscriptionPlanId = newPlanId;
             Context.Update(subscription);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }
@@ -292,17 +319,21 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
         }
     }
 
-    public async Task<Result> CancelSubscriptionAsync(int subscriptionId, int userId)
+    public async Task<Result> CancelSubscriptionAsync(int subscriptionId, int userId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var user = await Context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(new object[] { userId }, cancellationToken);
             if (user is null)
             {
                 return Result.Fail($"No user with id {userId}");
             }
 
-            var subscription = await Context.Subscriptions.FindAsync(subscriptionId);
+            var subscription =
+                await Context.Subscriptions.FindAsync(new object[] { subscriptionId }, cancellationToken);
             if (subscription is null || subscription.UserId != userId)
             {
                 return Result.Fail<LiqPayRefundResponse>(
@@ -316,7 +347,7 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
                 return Result.Fail<LiqPayRefundResponse>($"Subscription with id {subscriptionId} can't be cancelled");
             }
 
-            var result = await _paymentService.RefundPaymentAsync(subscriptionId);
+            var result = await _paymentService.RefundPaymentAsync(subscriptionId, cancellationToken);
             result.OnSuccess(() => Serilog.Log.Information("Success refunding payment"))
                 .OnFailure(() => Serilog.Log.Error(result.Error));
 
@@ -327,7 +358,7 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
 
             subscription.Status = SubscriptionStatus.Cancelled;
             Context.Subscriptions.Update(subscription);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return result.Failure
                 ? Result.Fail<LiqPayRefundResponse>($"Payment refund failed. Reason: {result.Error}")

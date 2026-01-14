@@ -19,11 +19,13 @@ public class QrScannerService : BaseService<QrScannerService>, IQrScannerService
     {
     }
 
-    public async Task<Result<string>> GenerateQrCode(int bookingId)
+    public async Task<Result<string>> GenerateQrCode(int bookingId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var booking = await Context.Bookings.FindAsync(bookingId);
+            var booking = await Context.Bookings.FindAsync(new object[] { bookingId }, cancellationToken);
             if (booking is null)
             {
                 return Result.Fail<string>($"Booking with id {bookingId} does not exist");
@@ -41,28 +43,34 @@ public class QrScannerService : BaseService<QrScannerService>, IQrScannerService
 
             return Result.Success(encrypted);
         }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<string>("Operation cancelled");
+        }
         catch (Exception e)
         {
             Log(LogLevel.Error, QrScannerServiceEventIds.ErrorGeneratingQrCode,
                 "Error generating QR code for booking {bookingId}. Error: {e.Message}",
-               bookingId, e.Message);
+                bookingId, e.Message);
 
             return Result.Fail<string>(
                 $"Error generating QR code for booking {bookingId}. Error: {e.Message}");
         }
     }
 
-    public async Task<Result<string>> GenerateQrCodeOwner(int spaceId, int userId)
+    public async Task<Result<string>> GenerateQrCodeOwner(int spaceId, int userId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var spaceExists = await Context.Spaces.AnyAsync(s => s.Id == spaceId);
+            var spaceExists = await Context.Spaces.AnyAsync(s => s.Id == spaceId, cancellationToken);
             if (!spaceExists)
             {
                 return Result.Fail<string>($"Space with id {spaceId} does not exist");
             }
 
-            var user = await Context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(new object[] { userId }, cancellationToken);
             if (user is null)
             {
                 return Result.Fail<string>($"User with id {userId} does not exist");
@@ -81,6 +89,10 @@ public class QrScannerService : BaseService<QrScannerService>, IQrScannerService
 
             return Result.Success(encrypted);
         }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<string>("Operation cancelled");
+        }
         catch (Exception e)
         {
             Log(LogLevel.Error, QrScannerServiceEventIds.ErrorGeneratingQrCode,
@@ -92,8 +104,11 @@ public class QrScannerService : BaseService<QrScannerService>, IQrScannerService
         }
     }
 
-    public async Task<Result<bool>> ValidateQrCode(string qrCode, int bookingId, int? spaceId = null)
+    public async Task<Result<bool>> ValidateQrCode(string qrCode, int bookingId, CancellationToken cancellationToken,
+        int? spaceId = null)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             if (string.IsNullOrWhiteSpace(qrCode))
@@ -111,7 +126,7 @@ public class QrScannerService : BaseService<QrScannerService>, IQrScannerService
 
             if (spaceId == null)
             {
-                var bookingExists = await Context.Bookings.AnyAsync(b => b.Id == bookingId);
+                var bookingExists = await Context.Bookings.AnyAsync(b => b.Id == bookingId, cancellationToken);
                 if (!bookingExists)
                 {
                     return Result.Fail<bool>($"Booking with id {bookingId} does not exist");
@@ -128,7 +143,7 @@ public class QrScannerService : BaseService<QrScannerService>, IQrScannerService
             {
                 // if (payload.SpaceId != null && payload.SpaceId == spaceId && DateTime.UtcNow > payload.ExpirationUtc)
                 // {
-                    return Result.Success(true);
+                return Result.Success(true);
                 // }
 
                 if (payload.SpaceId != spaceId || payload.BookingId != bookingId)
@@ -145,6 +160,10 @@ public class QrScannerService : BaseService<QrScannerService>, IQrScannerService
                 "Decryption failed for QR code. Error: {e.Message}", e.Message);
 
             return Result.Fail<bool>("Invalid or tampered QR code");
+        }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<bool>("Operation cancelled");
         }
         catch (Exception e)
         {

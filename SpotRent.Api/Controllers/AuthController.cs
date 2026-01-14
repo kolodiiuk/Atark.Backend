@@ -30,12 +30,16 @@ public class AuthController : BaseController<AuthController>
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [HttpPost("google")]
     [EndpointSummary("Signs in a user via Google authentication.")]
-    [EndpointDescription("Validates the Google ID token, creates or retrieves the SpotRent user, and issues JWT plus refresh tokens.")]
-    public async Task<ActionResult<LoginResponse>> GoogleSignIn([FromBody] GoogleSignInRequest request)
+    [EndpointDescription(
+        "Validates the Google ID token, creates or retrieves the SpotRent user, and issues JWT plus refresh tokens.")]
+    public async Task<ActionResult<LoginResponse>> GoogleSignIn([FromBody] GoogleSignInRequest request,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, AuthControllerEventIds.GoogleSignInAttempt, "Google sign-in attempt");
 
-        var validationResult = await _authService.ValidateGoogleSignInRequestAsync(request.IdToken);
+        var validationResult = await _authService.ValidateGoogleSignInRequestAsync(request.IdToken, cancellationToken);
         validationResult.OnFailure(() =>
             Log(LogLevel.Warning, AuthControllerEventIds.InvalidGoogleToken, "Invalid Google token"));
         if (validationResult.Failure)
@@ -45,7 +49,8 @@ public class AuthController : BaseController<AuthController>
 
         var payload = validationResult.Value;
 
-        var userResult = await _authService.GetOrCreateUser(payload.Email, payload.Name, payload.Subject);
+        var userResult =
+            await _authService.GetOrCreateUser(payload.Email, payload.Name, payload.Subject, cancellationToken);
         userResult.OnFailure(() =>
             Log(LogLevel.Warning, AuthControllerEventIds.GetOrCreateUserFailed,
                 "Failed to get or create user for Google email: {Email}. Error: {Error}", payload.Email,
@@ -55,7 +60,7 @@ public class AuthController : BaseController<AuthController>
             return Unauthorized(new { message = userResult.Error });
         }
 
-        var tokens = await _authService.GenerateTokens(userResult.Value);
+        var tokens = await _authService.GenerateTokens(userResult.Value, cancellationToken);
         var tokenExpiration = DateTime.UtcNow.AddMinutes(
             Convert.ToDouble(_configuration["Jwt:TokenExpirationMinutes"]));
         var response = new LoginResponse
@@ -84,9 +89,12 @@ public class AuthController : BaseController<AuthController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [HttpPost("register")]
     [EndpointSummary("Registers a new SpotRent user account.")]
-    [EndpointDescription("Validates the incoming registration payload and creates an admin user with the provided credentials.")]
-    public async Task<IActionResult> Register(RegisterRequest registerRequest)
+    [EndpointDescription(
+        "Validates the incoming registration payload and creates an admin user with the provided credentials.")]
+    public async Task<IActionResult> Register(RegisterRequest registerRequest, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, AuthControllerEventIds.RegisterAttempt,
             "Registration attempt for email: {Email}", registerRequest?.Email);
 
@@ -112,7 +120,7 @@ public class AuthController : BaseController<AuthController>
         };
 
         var result = await _authService.RegisterAsync(user, registerRequest.Password,
-            registerRequest.PhoneNumber, registerRequest.FirstName, registerRequest.LastName);
+            registerRequest.PhoneNumber, registerRequest.FirstName, registerRequest.LastName, cancellationToken);
         result.OnFailure(() =>
                 Log(LogLevel.Error, AuthControllerEventIds.RegisterFailed,
                     "Registration failed for email: {Email}. Error: {Error}",
@@ -133,8 +141,11 @@ public class AuthController : BaseController<AuthController>
     [HttpPost("login")]
     [EndpointSummary("Authenticates a user with email and password.")]
     [EndpointDescription("Validates user credentials and returns access plus refresh tokens for the account.")]
-    public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, AuthControllerEventIds.LoginAttempt,
             "Login attempt for email: {Email}", request?.Email);
 
@@ -145,7 +156,8 @@ public class AuthController : BaseController<AuthController>
             return BadRequest(new ProblemDetails() { Title = $"Invalid user data" });
         }
 
-        var validationResult = await _authService.ValidateUserCredentials(request.Email, request.Password);
+        var validationResult =
+            await _authService.ValidateUserCredentials(request.Email, request.Password, cancellationToken);
         validationResult.OnFailure(() =>
             Log(LogLevel.Warning, AuthControllerEventIds.LoginFailed,
                 "Login failed for email: {Email}. Error: {Error}", request.Email,
@@ -155,7 +167,7 @@ public class AuthController : BaseController<AuthController>
             return Unauthorized(new { Message = validationResult.Error });
         }
 
-        var tokens = await _authService.GenerateTokens(validationResult.Value);
+        var tokens = await _authService.GenerateTokens(validationResult.Value, cancellationToken);
         var tokenExpiration = DateTime.UtcNow.AddMinutes(
             Convert.ToDouble(_configuration["Jwt:TokenExpirationMinutes"]));
         var response = new LoginResponse
@@ -185,9 +197,13 @@ public class AuthController : BaseController<AuthController>
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [HttpPost("refresh")]
     [EndpointSummary("Refreshes an access token using a refresh token.")]
-    [EndpointDescription("Validates the supplied refresh token, regenerates JWT credentials, and returns updated token metadata.")]
-    public async Task<ActionResult<LoginResponse>> Refresh([FromBody] RefreshTokenRequest request)
+    [EndpointDescription(
+        "Validates the supplied refresh token, regenerates JWT credentials, and returns updated token metadata.")]
+    public async Task<ActionResult<LoginResponse>> Refresh([FromBody] RefreshTokenRequest request,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, AuthControllerEventIds.TokenRefreshAttempt, "Token refresh attempt");
 
         if (string.IsNullOrEmpty(request.RefreshToken))
@@ -196,7 +212,7 @@ public class AuthController : BaseController<AuthController>
             return BadRequest(new { message = "Refresh token is required" });
         }
 
-        var result = await _authService.RefreshTokenAsync(request.RefreshToken);
+        var result = await _authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
         result.OnFailure(() =>
             Log(LogLevel.Warning, AuthControllerEventIds.TokenRefreshFailed,
                 "Token refresh failed: {Error}", result.Error));
@@ -231,8 +247,10 @@ public class AuthController : BaseController<AuthController>
     [HttpPost("logout")]
     [EndpointSummary("Logs out a user by revoking the refresh token.")]
     [EndpointDescription("Ensures a refresh token is provided and invalidates it to end the user session.")]
-    public async Task<IActionResult> Logout([FromBody] LogoutDto request)
+    public async Task<IActionResult> Logout([FromBody] LogoutDto request, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, AuthControllerEventIds.LogoutAttempt, "Logout attempt");
 
         if (string.IsNullOrEmpty(request.RefreshToken))
@@ -242,7 +260,7 @@ public class AuthController : BaseController<AuthController>
             return BadRequest(new { message = "Refresh token is required" });
         }
 
-        var result = await _authService.LogoutAsync(request.RefreshToken);
+        var result = await _authService.LogoutAsync(request.RefreshToken, cancellationToken);
         result.OnFailure(() =>
                 Log(LogLevel.Warning, AuthControllerEventIds.LogoutFailed, "Logout failed: {Error}",
                     result.Error))
@@ -262,9 +280,12 @@ public class AuthController : BaseController<AuthController>
     [HttpPost("verify")]
     [Authorize(Roles = "User, Owner, Admin")]
     [EndpointSummary("Verifies the caller's JWT and returns profile data.")]
-    [EndpointDescription("Reads the user identifier from claims, loads the user entity, and confirms the token is still valid.")]
-    public async Task<ActionResult<UserDto>> VerifyToken()
+    [EndpointDescription(
+        "Reads the user identifier from claims, loads the user entity, and confirms the token is still valid.")]
+    public async Task<ActionResult<UserDto>> VerifyToken(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         Log(LogLevel.Information, AuthControllerEventIds.TokenVerificationAttempt,
             "Token verification attempt for user ID: {UserId}", userId);
@@ -279,7 +300,7 @@ public class AuthController : BaseController<AuthController>
         var isParsed = int.TryParse(userId, out var id);
         if (isParsed)
         {
-            var result = await _authService.GetUserAsync(id);
+            var result = await _authService.GetUserAsync(id, cancellationToken);
             result.OnFailure(() =>
             {
                 Log(LogLevel.Warning, AuthControllerEventIds.TokenVerificationFailed,
@@ -321,8 +342,11 @@ public class AuthController : BaseController<AuthController>
     [Authorize(Roles = "Admin")]
     [EndpointSummary("Creates a new administrator account.")]
     [EndpointDescription("Accepts registration data from an admin user.")]
-    public async Task<IActionResult> CreateAdminAsync(RegisterRequest registerRequest)
+    public async Task<IActionResult> CreateAdminAsync(RegisterRequest registerRequest,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, AuthControllerEventIds.CreateAdminAttempt,
             "Admin creation attempt for email: {Email}", registerRequest?.Email);
 
@@ -341,7 +365,7 @@ public class AuthController : BaseController<AuthController>
         };
 
         var result = await _authService.RegisterAsync(user, registerRequest.Password,
-            registerRequest.PhoneNumber, registerRequest.FirstName, registerRequest.LastName);
+            registerRequest.PhoneNumber, registerRequest.FirstName, registerRequest.LastName, cancellationToken);
         result.OnFailure(() =>
                 Log(LogLevel.Error, AuthControllerEventIds.CreateAdminFailed,
                     "Admin creation failed for email: {Email}. Error: {Error}",
@@ -364,8 +388,11 @@ public class AuthController : BaseController<AuthController>
     [Authorize(Roles = "Admin")]
     [EndpointSummary("Creates a new owner account.")]
     [EndpointDescription("Accepts registration data from an owner user.")]
-    public async Task<IActionResult> CreateOwnerAsync(RegisterRequest registerRequest)
+    public async Task<IActionResult> CreateOwnerAsync(RegisterRequest registerRequest,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, AuthControllerEventIds.CreateAdminAttempt,
             "Admin creation attempt for email: {Email}", registerRequest?.Email);
 
@@ -384,7 +411,7 @@ public class AuthController : BaseController<AuthController>
         };
 
         var result = await _authService.RegisterAsync(user, registerRequest.Password,
-            registerRequest.PhoneNumber, registerRequest.FirstName, registerRequest.LastName);
+            registerRequest.PhoneNumber, registerRequest.FirstName, registerRequest.LastName, cancellationToken);
         result.OnFailure(() =>
                 Log(LogLevel.Error, AuthControllerEventIds.CreateAdminFailed,
                     "Admin creation failed for email: {Email}. Error: {Error}",

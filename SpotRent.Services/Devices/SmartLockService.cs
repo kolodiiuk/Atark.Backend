@@ -22,11 +22,13 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
         _qrScannerService = qrScannerService;
     }
 
-    public async Task<Result> RegisterDeviceAsync(int spaceId)
+    public async Task<Result> RegisterDeviceAsync(int spaceId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var space = await Context.Spaces.FindAsync(spaceId);
+            var space = await Context.Spaces.FindAsync(new object[] { spaceId }, cancellationToken);
             if (space is null)
             {
                 return Result.Fail($"Space with id {spaceId} doesn't exist");
@@ -43,8 +45,8 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
                 UpdatedAt = now
             };
 
-            await Context.Devices.AddAsync(device);
-            await Context.SaveChangesAsync();
+            await Context.Devices.AddAsync(device, cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
 
             Log(LogLevel.Information, SmartLockServiceEventIds.RegisterDevice,
                 "Registered new device {DeviceId} for space {SpaceId}", device.Id, spaceId);
@@ -60,11 +62,14 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
         }
     }
 
-    public async Task<Result> UpdateDeviceStatusAsync(int deviceId, bool isOnline, string statusMessage)
+    public async Task<Result> UpdateDeviceStatusAsync(int deviceId, bool isOnline, string statusMessage,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var device = await Context.Devices.FindAsync(deviceId);
+            var device = await Context.Devices.FindAsync(new object[] { deviceId }, cancellationToken);
             if (device is null)
             {
                 return Result.Fail($"Device with id {deviceId} does not exist");
@@ -80,7 +85,7 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
             }
 
             Context.Devices.Update(device);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             Log(LogLevel.Information, SmartLockServiceEventIds.UpdateDeviceStatus,
                 "Updated device {DeviceId} status. IsOnline: {IsOnline}, Status: {Status}",
@@ -97,17 +102,20 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
         }
     }
 
-    public async Task<Result<bool>> UnlockAsync(int userId, int deviceId, string qrCode)
+    public async Task<Result<bool>> UnlockAsync(int userId, int deviceId, string qrCode,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var userExists = await Context.Users.AnyAsync(u => u.Id == userId);
+            var userExists = await Context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
             if (!userExists)
             {
                 return Result.Fail<bool>($"User with id {userId} does not exist");
             }
 
-            var device = await Context.Devices.FindAsync(deviceId);
+            var device = await Context.Devices.FindAsync(new object[] { deviceId }, cancellationToken);
             if (device is null)
             {
                 return Result.Fail<bool>($"Device with id {deviceId} does not exist");
@@ -119,7 +127,7 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
                 b.SpaceId == device.SpaceId &&
                 // b.StartTime <= now &&
                 // b.EndTime >= now &&
-                b.CancelledAt == null);
+                b.CancelledAt == null, cancellationToken);
 
             if (booking is null)
             {
@@ -130,7 +138,7 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
                 "Unlock attempt by user {UserId} on device {DeviceId} for booking {BookingId}",
                 userId, deviceId, booking.Id);
 
-            var validation = await _qrScannerService.ValidateQrCode(qrCode, deviceId, booking.Id);
+            var validation = await _qrScannerService.ValidateQrCode(qrCode, deviceId, cancellationToken, booking.Id);
             if (validation.Failure)
             {
                 Log(LogLevel.Warning, SmartLockServiceEventIds.UnlockFailure,
@@ -152,24 +160,28 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
         }
     }
 
-    public async Task<Result<bool>> UnlockOwnerAsync(int userId, int deviceId, string qrCode)
+    public async Task<Result<bool>> UnlockOwnerAsync(int userId, int deviceId, string qrCode,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var userExists = await Context.Users.AnyAsync(u => u.Id == userId);
+            var userExists = await Context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
             if (!userExists)
             {
                 return Result.Fail<bool>($"User with id {userId} does not exist");
             }
 
-            var device = await Context.Devices.FindAsync(deviceId);
+            var device = await Context.Devices.FindAsync(new object[] { deviceId }, cancellationToken);
             if (device is null)
             {
                 return Result.Fail<bool>($"Device with id {deviceId} does not exist");
             }
 
             var now = DateTime.UtcNow;
-            var isOwner = await Context.Devices.FirstOrDefaultAsync(d => d.Id == deviceId && d.Space.OwnerId == userId);
+            var isOwner = await Context.Devices.FirstOrDefaultAsync(d => d.Id == deviceId && d.Space.OwnerId == userId,
+                cancellationToken);
 
             if (isOwner is null)
             {
@@ -180,7 +192,7 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
                 "Unlock attempt by user {UserId} on device {DeviceId} for booking {BookingId}",
                 userId, deviceId, isOwner.Id);
 
-            var validation = await _qrScannerService.ValidateQrCode(qrCode, deviceId, isOwner.Id);
+            var validation = await _qrScannerService.ValidateQrCode(qrCode, deviceId, cancellationToken, isOwner.Id);
             if (validation.Failure)
             {
                 Log(LogLevel.Warning, SmartLockServiceEventIds.UnlockFailure,
@@ -202,11 +214,13 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
         }
     }
 
-    public async Task<Result> LockAsync(int deviceId)
+    public async Task<Result> LockAsync(int deviceId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var device = await Context.Devices.FindAsync(deviceId);
+            var device = await Context.Devices.FindAsync(new object[] { deviceId }, cancellationToken);
             if (device is null)
             {
                 return Result.Fail($"Device with id {deviceId} does not exist");
@@ -216,7 +230,7 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
             device.UpdatedAt = DateTime.UtcNow;
 
             Context.Devices.Update(device);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             Log(LogLevel.Information, SmartLockServiceEventIds.LockDevice,
                 "Device {DeviceId} locked", deviceId);

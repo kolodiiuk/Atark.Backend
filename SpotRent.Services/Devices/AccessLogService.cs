@@ -20,24 +20,27 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
         int deviceId,
         AccessType accessType,
         int bookingId,
+        CancellationToken cancellationToken,
         bool isSuccessful = true,
         string errorMessage = null)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var userExists = await Context.Users.AnyAsync(u => u.Id == userId);
+            var userExists = await Context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
             if (!userExists)
             {
                 return Result.Fail<int>($"User with id {userId} does not exist");
             }
 
-            var deviceExists = await Context.Devices.AnyAsync(d => d.Id == deviceId);
+            var deviceExists = await Context.Devices.AnyAsync(d => d.Id == deviceId, cancellationToken);
             if (!deviceExists)
             {
                 return Result.Fail<int>($"Device with id {deviceId} does not exist");
             }
 
-            var booking = await Context.Bookings.FindAsync(bookingId);
+            var booking = await Context.Bookings.FindAsync(new object[] { bookingId }, cancellationToken);
             if (booking is null)
             {
                 return Result.Fail<int>($"Booking with id {bookingId} does not exist");
@@ -53,10 +56,14 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
                 ErrorMessage = errorMessage
             };
 
-            await Context.AddAsync(log);
-            await Context.SaveChangesAsync();
+            await Context.AddAsync(log, cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success(log.Id);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail<int>("Operation cancelled");
         }
         catch (Exception e)
         {
@@ -72,24 +79,27 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
         int userId,
         int deviceId,
         AccessType accessType,
+        CancellationToken cancellationToken,
         bool isSuccessful = true,
         string errorMessage = null)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var userExists = await Context.Users.AnyAsync(u => u.Id == userId);
+            var userExists = await Context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
             if (!userExists)
             {
                 return Result.Fail<int>($"User with id {userId} does not exist");
             }
 
-            var deviceExists = await Context.Devices.AnyAsync(d => d.Id == deviceId);
+            var deviceExists = await Context.Devices.AnyAsync(d => d.Id == deviceId, cancellationToken);
             if (!deviceExists)
             {
                 return Result.Fail<int>($"Device with id {deviceId} does not exist");
             }
 
-            var space = await Context.Spaces.FirstOrDefaultAsync(s => s.OwnerId == userId);
+            var space = await Context.Spaces.FirstOrDefaultAsync(s => s.OwnerId == userId, cancellationToken);
             if (space is null)
             {
                 return Result.Fail<int>("Space is not found");
@@ -105,10 +115,14 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
                 ErrorMessage = errorMessage
             };
 
-            await Context.AddAsync(log);
-            await Context.SaveChangesAsync();
+            await Context.AddAsync(log, cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success(log.Id);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail<int>("Operation cancelled");
         }
         catch (Exception e)
         {
@@ -120,13 +134,22 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
         }
     }
 
-    public async Task<Result<IEnumerable<AccessLog>>> GetSpaceAccessLogsAsync(int deviceId)
+    public async Task<Result<IEnumerable<AccessLog>>> GetSpaceAccessLogsAsync(int deviceId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var accessLogs = await Context.AccessLogs.Where(al => al.DeviceId == deviceId).ToListAsync();
+            var accessLogs = await Context.AccessLogs
+                .Where(al => al.DeviceId == deviceId)
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<AccessLog>>(accessLogs);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail<IEnumerable<AccessLog>>("Operation cancelled");
         }
         catch (Exception e)
         {
@@ -139,15 +162,23 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
         }
     }
 
-    public async Task<Result<IEnumerable<AccessLog>>> GetOwnerAccessLogsAsync(int ownerId)
+    public async Task<Result<IEnumerable<AccessLog>>> GetOwnerAccessLogsAsync(int ownerId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var accessLogs = await Context.AccessLogs
                 .Include(al => al.Space)
-                .Where(al => al.Space.OwnerId == ownerId).ToListAsync();
+                .Where(al => al.Space.OwnerId == ownerId)
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<AccessLog>>(accessLogs);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail<IEnumerable<AccessLog>>("Operation cancelled");
         }
         catch (Exception e)
         {
@@ -160,13 +191,22 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
         }
     }
 
-    public async Task<Result<IEnumerable<AccessLog>>> GetUserAccessLogsAsync(int userId)
+    public async Task<Result<IEnumerable<AccessLog>>> GetUserAccessLogsAsync(int userId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var accessLogs = await Context.AccessLogs.Where(al => al.UserId == userId).ToListAsync();
+            var accessLogs = await Context.AccessLogs
+                .Where(al => al.UserId == userId)
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<AccessLog>>(accessLogs);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail<IEnumerable<AccessLog>>("Operation cancelled");
         }
         catch (Exception e)
         {
@@ -179,11 +219,13 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
         }
     }
 
-    public async Task<Result<AccessLog>> GetLogById(int id)
+    public async Task<Result<AccessLog>> GetLogById(int id, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var accessLog = await Context.AccessLogs.FindAsync(id);
+            var accessLog = await Context.AccessLogs.FindAsync(new object[] { id }, cancellationToken);
 
             if (accessLog is null)
             {
@@ -191,6 +233,10 @@ public class AccessLogService : BaseService<AccessLogService>, IAccessLogService
             }
 
             return Result.Success(accessLog);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return Result.Fail<AccessLog>("Operation cancelled");
         }
         catch (Exception e)
         {

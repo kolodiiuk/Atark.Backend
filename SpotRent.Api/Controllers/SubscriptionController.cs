@@ -28,8 +28,10 @@ public class SubscriptionController : BaseController<SubscriptionController>
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [EndpointSummary("Creates a subscription for a user.")]
     [EndpointDescription("Validates the subscription payload and subscribes the specified user to the requested plan.")]
-    public async Task<ActionResult> CreateSubscriptionAsync(CreateSubscriptionDto subscriptionDto)
+    public async Task<ActionResult> CreateSubscriptionAsync(CreateSubscriptionDto subscriptionDto, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (!subscriptionDto.IsValid())
         {
             return StatusCode(StatusCodes.Status400BadRequest, "Id of user or plan is not valid");
@@ -50,7 +52,7 @@ public class SubscriptionController : BaseController<SubscriptionController>
         var isParsed = int.TryParse(userId, out var parsedUserId);
         if (isParsed)
         {
-            var result = await _subscriptionService.SubscribeAsync(parsedUserId, subscriptionDto.PlanId);
+            var result = await _subscriptionService.SubscribeAsync(parsedUserId, subscriptionDto.PlanId, cancellationToken);
 
             result.OnSuccess(() => Log(LogLevel.Information, SubscriptionControllerEventIds.Subscribe,
                     "Subscription created for user {userId}, plan {planId}.",
@@ -71,12 +73,10 @@ public class SubscriptionController : BaseController<SubscriptionController>
     [HttpGet("{id:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    [EndpointSummary("Gets subscription details by identifier.")]
-    [EndpointDescription("Validates the subscription ID and returns the mapped subscription information.")]
-    public async Task<ActionResult<Subscription>> GetSubscriptionByIdAsync(int id)
+    public async Task<ActionResult<Subscription>> GetSubscriptionByIdAsync(int id, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (id < 1)
         {
             return StatusCode(StatusCodes.Status400BadRequest, "Id is not valid");
@@ -97,7 +97,7 @@ public class SubscriptionController : BaseController<SubscriptionController>
         var isParsed = int.TryParse(userId, out var parsedUserId);
         if (isParsed)
         {
-            var result = await _subscriptionService.GetSubscriptionByIdAsync(id, parsedUserId);
+            var result = await _subscriptionService.GetSubscriptionByIdAsync(id, parsedUserId, cancellationToken);
 
             result.OnSuccess(() => Log(LogLevel.Information, SubscriptionControllerEventIds.GetSubscriptionById,
                     "Retrieved subscription with id {id}.", id))
@@ -116,12 +116,10 @@ public class SubscriptionController : BaseController<SubscriptionController>
     [HttpGet("history")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    [EndpointSummary("Retrieves the subscription history for a user.")]
-    [EndpointDescription("Validates the user identifier and fetches all past subscriptions associated with the user.")]
-    public async Task<IActionResult> GetSubscriptionHistory()
+    public async Task<IActionResult> GetSubscriptionHistoryAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         Log(LogLevel.Information, AuthControllerEventIds.TokenVerificationAttempt,
             "Subscription history fetching attempt for user ID: {UserId}", userId);
@@ -137,13 +135,12 @@ public class SubscriptionController : BaseController<SubscriptionController>
         var isParsed = int.TryParse(userId, out var parsedUserId);
         if (isParsed)
         {
-            var result = await _subscriptionService.GetSubscriptionHistoryAsync(parsedUserId);
+            var result = await _subscriptionService.GetSubscriptionHistoryAsync(parsedUserId, cancellationToken);
 
             result.OnSuccess(() => Log(LogLevel.Information, SubscriptionControllerEventIds.GetSubscriptionHistory,
                     "Retrieved subscription history for user {userId}.", parsedUserId))
                 .OnFailure(() => Log(LogLevel.Error, SubscriptionControllerEventIds.GetSubscriptionHistory,
-                    "Error retrieving subscription history for user {userId}. Error: {error}",
-                    parsedUserId, result.Error));
+                    "Error retrieving subscription history for user {userId}. Error: {error}", parsedUserId, result.Error));
 
             return result.Failure
                 ? StatusCode(StatusCodes.Status500InternalServerError, result.Error)
@@ -157,12 +154,10 @@ public class SubscriptionController : BaseController<SubscriptionController>
     [HttpGet("me")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    [EndpointSummary("Gets the current subscription for a user.")]
-    [EndpointDescription("Fetches the active subscription of the specified user after validating the identifier.")]
-    public async Task<ActionResult> GetMySubscriptionAsync()
+    public async Task<ActionResult> GetMySubscriptionAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         Log(LogLevel.Information, AuthControllerEventIds.TokenVerificationAttempt,
             "Subscription history fetching attempt for user ID: {UserId}", userId);
@@ -183,14 +178,13 @@ public class SubscriptionController : BaseController<SubscriptionController>
                 return StatusCode(StatusCodes.Status400BadRequest, "Id is not valid");
             }
 
-            var result = await _subscriptionService.GetCurrentUserSubscriptionAsync(parsedUserId);
+            var result = await _subscriptionService.GetCurrentUserSubscriptionAsync(parsedUserId, cancellationToken);
 
             result
                 .OnSuccess(() => Log(LogLevel.Information, SubscriptionControllerEventIds.GetMySubscription,
                     "Retrieved current subscription for user {userId}.", parsedUserId))
                 .OnFailure(() => Log(LogLevel.Error, SubscriptionControllerEventIds.GetMySubscription,
-                    "Error retrieving current subscription for user {userId}. Error: {error}",
-                    parsedUserId, result.Error));
+                    "Error retrieving current subscription for user {userId}. Error: {error}", parsedUserId, result.Error));
 
             return result.Failure
                 ? StatusCode(StatusCodes.Status500InternalServerError, result.Error)
@@ -204,12 +198,10 @@ public class SubscriptionController : BaseController<SubscriptionController>
     [HttpPut("{subscriptionId:int}/change")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [EndpointSummary("Changes an existing subscription to a new plan.")]
-    [EndpointDescription(
-        "Validates both identifiers and instructs the service to move the subscription to the provided plan.")]
-    public async Task<ActionResult> ChangeSubscriptionAsync(int subscriptionId, int newPlanId)
+    public async Task<ActionResult> ChangeSubscriptionAsync(int subscriptionId, int newPlanId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (subscriptionId < 1 || newPlanId < 1)
         {
             return StatusCode(StatusCodes.Status400BadRequest, "At least one of ids is not valid");
@@ -230,7 +222,7 @@ public class SubscriptionController : BaseController<SubscriptionController>
         var isParsed = int.TryParse(userId, out var parsedUserId);
         if (isParsed)
         {
-            var result = await _subscriptionService.ChangeSubscriptionAsync(subscriptionId, newPlanId, parsedUserId);
+            var result = await _subscriptionService.ChangeSubscriptionAsync(subscriptionId, newPlanId, parsedUserId, cancellationToken);
 
             result.OnSuccess(() => Log(LogLevel.Information, SubscriptionControllerEventIds.ChangeSubscription,
                     "Changed subscription {subscriptionId} to plan {newPlanId}.", subscriptionId,
@@ -251,11 +243,10 @@ public class SubscriptionController : BaseController<SubscriptionController>
     [HttpPut("{userId:int}/{subscriptionId:int}/cancel")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [EndpointSummary("Cancels a subscription for a user.")]
-    [EndpointDescription("Validates user and subscription IDs, then cancels the subscription resource if valid.")]
-    public async Task<ActionResult> CancelSubscriptionAsync(int subscriptionId)
+    public async Task<ActionResult> CancelSubscriptionAsync(int subscriptionId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (subscriptionId < 1)
         {
             return StatusCode(StatusCodes.Status400BadRequest, "Subscription id is not valid");
@@ -276,7 +267,7 @@ public class SubscriptionController : BaseController<SubscriptionController>
         var isParsed = int.TryParse(userId, out var parsedUserId);
         if (isParsed)
         {
-            var result = await _subscriptionService.CancelSubscriptionAsync(subscriptionId, parsedUserId);
+            var result = await _subscriptionService.CancelSubscriptionAsync(subscriptionId, parsedUserId, cancellationToken);
 
             result.OnSuccess(() => Log(LogLevel.Information, SubscriptionControllerEventIds.CancelSubscription,
                     "Cancelled subscription {subscriptionId} for user {userId}.",

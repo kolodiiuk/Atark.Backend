@@ -16,8 +16,10 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
     {
     }
 
-    public async Task<Result<Space>> CreateSpaceAsync(Space space)
+    public async Task<Result<Space>> CreateSpaceAsync(Space space, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (space is null)
         {
             return Result.Fail<Space>("Space payload cannot be null");
@@ -37,8 +39,8 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
                 }
             }
 
-            await Context.Spaces.AddAsync(space);
-            await Context.SaveChangesAsync();
+            await Context.Spaces.AddAsync(space, cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success(space);
         }
@@ -58,8 +60,11 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
         }
     }
 
-    public async Task<Result<IEnumerable<Space>>> FilterSpacesAsync(SpaceFilterRequest req)
+    public async Task<Result<IEnumerable<Space>>> FilterSpacesAsync(SpaceFilterRequest req,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var query = Context.Spaces.AsQueryable();
@@ -68,7 +73,7 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
             query = query.AsExpandable().Where(req.Predicate);
             query = req.OrderBy(query);
 
-            var total = await query.CountAsync();
+            var total = await query.CountAsync(cancellationToken);
             req.CaptureTotal?.Invoke(total);
 
             if (req.SkipCount > 0)
@@ -81,7 +86,7 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
                 query = query.Take(req.TakeCount.Value);
             }
 
-            var spaces = await query.AsNoTracking().ToListAsync();
+            var spaces = await query.AsNoTracking().ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<Space>>(spaces);
         }
@@ -101,8 +106,10 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
         }
     }
 
-    public async Task<Result<Space>> GetSpaceByIdAsync(int id)
+    public async Task<Result<Space>> GetSpaceByIdAsync(int id, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var space = await Context.Spaces
@@ -112,7 +119,7 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
                 .ThenInclude(av => av.Attribute)
                 .Include(s => s.WorkingHours)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == id);
+                .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
             if (space is null)
             {
@@ -138,8 +145,10 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
     }
 
     public async Task<Result<IEnumerable<Space>>> GetAvailableSpacesAsync(
-        DateTime startTime, DateTime endTime, string city)
+        DateTime startTime, DateTime endTime, string city, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (endTime <= startTime)
         {
             return Result.Fail<IEnumerable<Space>>("End time must be after start time");
@@ -165,7 +174,7 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
                     b.StartTime < endTime &&
                     b.EndTime > startTime))
                 .AsNoTracking()
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<Space>>(spaces);
         }
@@ -185,8 +194,11 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
         }
     }
 
-    public async Task<Result<bool>> IsSpaceAvailableAsync(int spaceId, DateTime startTime, DateTime endTime)
+    public async Task<Result<bool>> IsSpaceAvailableAsync(int spaceId, DateTime startTime, DateTime endTime,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (spaceId < 1)
         {
             return Result.Fail<bool>("Space id must be positive");
@@ -201,7 +213,7 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
         {
             var overlaps = await Context.Bookings
                 .Where(b => b.SpaceId == spaceId && b.CancelledAt == null)
-                .AnyAsync(b => b.StartTime < endTime && b.EndTime > startTime);
+                .AnyAsync(b => b.StartTime < endTime && b.EndTime > startTime, cancellationToken);
 
             return Result.Success(!overlaps);
         }
@@ -221,11 +233,14 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
         }
     }
 
-    public async Task<Result<SpaceSchedule>> GetSpaceScheduleAsync(int spaceId, DateTime? startDate, DateTime? endDate)
+    public async Task<Result<SpaceSchedule>> GetSpaceScheduleAsync(int spaceId, DateTime? startDate, DateTime? endDate,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var exists = await Context.Spaces.AnyAsync(s => s.Id == spaceId);
+            var exists = await Context.Spaces.AnyAsync(s => s.Id == spaceId, cancellationToken);
             if (!exists)
             {
                 return Result.Fail<SpaceSchedule>($"No space with id: {spaceId}");
@@ -241,12 +256,13 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
                 )
                 .OrderBy(b => b.StartTime)
                 .Select(b => new { b.StartTime, b.EndTime })
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             var schedule = new SpaceSchedule
             {
                 SpaceId = spaceId,
-                Bookings = bookings.Select(b => new StartEndTime {StartTime = b.StartTime, EndTime = b.EndTime}).ToList()
+                Bookings = bookings.Select(b => new StartEndTime { StartTime = b.StartTime, EndTime = b.EndTime })
+                    .ToList()
             };
 
             return Result.Success(schedule);
@@ -267,8 +283,10 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
         }
     }
 
-    public async Task<Result> UpdateSpaceAsync(Space space, int ownerId)
+    public async Task<Result> UpdateSpaceAsync(Space space, int ownerId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (space is null || space.Id < 1)
         {
             return Result.Fail("Space payload is invalid");
@@ -279,7 +297,7 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
             var existingSpace = await Context.Spaces
                 .Include(s => s.AttributeValues)
                 .Include(s => s.WorkingHours)
-                .FirstOrDefaultAsync(s => s.Id == space.Id);
+                .FirstOrDefaultAsync(s => s.Id == space.Id, cancellationToken);
 
             if (existingSpace is null)
             {
@@ -295,7 +313,7 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
             existingSpace.UpdatedAt = DateTime.UtcNow;
             UpdateAttributeValues(space, existingSpace);
             UpdateWorkingHours(space, existingSpace);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }
@@ -315,11 +333,13 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
         }
     }
 
-    public async Task<Result> DeleteSpaceAsync(int id, int ownerId)
+    public async Task<Result> DeleteSpaceAsync(int id, int ownerId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var space = await Context.Spaces.FindAsync(id);
+            var space = await Context.Spaces.FindAsync(new object[] { id }, cancellationToken);
             if (space is null)
             {
                 return Result.Fail($"No space with id: {id}");
@@ -331,7 +351,7 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
             }
 
             Context.Spaces.Remove(space);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }

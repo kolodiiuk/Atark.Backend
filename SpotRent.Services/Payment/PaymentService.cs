@@ -16,8 +16,11 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
         _liqPayHelper = liqPayHelper;
     }
 
-    public async Task<Result<LiqPayPaymentData>> CreatePaymentAsync(int id, decimal total)
+    public async Task<Result<LiqPayPaymentData>> CreatePaymentAsync(int id, decimal total,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var paymentData = _liqPayHelper.GeneratePaymentData(
@@ -29,15 +32,22 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
 
             return Result.Success(paymentData);
         }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<LiqPayPaymentData>("Operation cancelled");
+        }
         catch (Exception ex)
         {
             return Result.Fail<LiqPayPaymentData>($"Failure creating payment: {ex.Message}");
         }
     }
 
-    public async Task<Result> UpdatePaymentStatusSubscriptionAsync(int subscriptionId, long transactionId, string status)
+    public async Task<Result> UpdatePaymentStatusSubscriptionAsync(int subscriptionId, long transactionId,
+        string status, CancellationToken cancellationToken)
     {
-        var subscription = await Context.Subscriptions.FindAsync(subscriptionId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var subscription = await Context.Subscriptions.FindAsync(new object[] { subscriptionId }, cancellationToken);
         if (subscription is not null)
         {
             switch (status)
@@ -60,7 +70,7 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
             subscription.TransactionId = transactionId;
             subscription.PaymentProcessedAt = DateTime.UtcNow;
 
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }
@@ -68,9 +78,12 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
         return Result.Fail($"No payment for {subscriptionId} is in db");
     }
 
-    public async Task<Result> UpdatePaymentStatusBookingAsync(int bookingId, long transactionId, string status)
+    public async Task<Result> UpdatePaymentStatusBookingAsync(int bookingId, long transactionId, string status,
+        CancellationToken cancellationToken)
     {
-        var booking = await Context.Bookings.FindAsync(bookingId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var booking = await Context.Bookings.FindAsync(new object[] { bookingId }, cancellationToken);
         if (booking is not null)
         {
             switch (status)
@@ -93,7 +106,7 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
             booking.TransactionId = transactionId;
             booking.PaymentProcessedAt = DateTime.UtcNow;
 
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }
@@ -101,13 +114,19 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
         return Result.Fail($"No payment for {bookingId} is in db");
     }
 
-    public async Task<Result<LiqPayRefundResponse>> RefundPaymentAsync(int id)
+    public async Task<Result<LiqPayRefundResponse>> RefundPaymentAsync(int id, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var result = await _liqPayHelper.RefundAsync<LiqPayRefundResponse>(id);
 
             return Result.Success(result);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<LiqPayRefundResponse>("Operation cancelled");
         }
         catch (Exception e)
         {

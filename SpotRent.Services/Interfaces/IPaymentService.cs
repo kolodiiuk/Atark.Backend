@@ -5,11 +5,14 @@ namespace SpotRent.Services.Interfaces;
 
 public interface IPaymentService
 {
-    Task<Result<LiqPayPaymentData>> CreatePaymentAsync(int id, decimal totalAmount);
+    Task<Result<LiqPayPaymentData>>
+        CreatePaymentAsync(int id, decimal totalAmount, CancellationToken cancellationToken);
 
-    Task<Result> UpdatePaymentStatusSubscriptionAsync(int subscriptionId, long transactionId, string status);
+    Task<Result> UpdatePaymentStatusSubscriptionAsync(int subscriptionId, long transactionId, string status,
+        CancellationToken cancellationToken);
 
-    Task<Result<LiqPayRefundResponse>> RefundPaymentAsync(int subscriptionId);
+    Task<Result<LiqPayRefundResponse>> RefundPaymentAsync(int subscriptionId, CancellationToken cancellationToken);
 
-    Task<Result> UpdatePaymentStatusBookingAsync(int bookingId, long transactionId, string status);
+    Task<Result> UpdatePaymentStatusBookingAsync(int bookingId, long transactionId, string status,
+        CancellationToken cancellationToken);
 }

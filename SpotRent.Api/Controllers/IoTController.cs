@@ -31,8 +31,11 @@ public class IoTController : BaseController<IoTController>
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     [EndpointSummary("Register a new device")]
     [EndpointDescription("Registers a smart lock device for a given space.")]
-    public async Task<IActionResult> RegisterDevice(DeviceRegistrationRequest request)
+    public async Task<IActionResult> RegisterDevice(DeviceRegistrationRequest request,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, IotControllerEventIds.RegisterDeviceAttempt,
             "Device registration attempt for space {SpaceId}", request?.SpaceId);
 
@@ -44,7 +47,7 @@ public class IoTController : BaseController<IoTController>
             return StatusCode(StatusCodes.Status400BadRequest, "Space id must be provided");
         }
 
-        var result = await _smartLockService.RegisterDeviceAsync(request.SpaceId);
+        var result = await _smartLockService.RegisterDeviceAsync(request.SpaceId, cancellationToken);
         result.OnSuccess(() =>
                 Log(LogLevel.Information, IotControllerEventIds.RegisterDeviceSuccess,
                     "Device registered for space {SpaceId}", request.SpaceId))
@@ -63,8 +66,11 @@ public class IoTController : BaseController<IoTController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [EndpointSummary("Update device status")]
     [EndpointDescription("Updates the online/offline state and status message reported by a device.")]
-    public async Task<IActionResult> UpdateDeviceStatus(DeviceStatusRequest request)
+    public async Task<IActionResult> UpdateDeviceStatus(DeviceStatusRequest request,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, IotControllerEventIds.DeviceStatusUpdateAttempt,
             "Device status update attempt for device {DeviceId}", request?.DeviceId);
 
@@ -79,7 +85,8 @@ public class IoTController : BaseController<IoTController>
         var result = await _smartLockService.UpdateDeviceStatusAsync(
             request.DeviceId,
             request.IsOnline,
-            request.StatusMessage);
+            request.StatusMessage,
+            cancellationToken);
 
         result.OnSuccess(() =>
                 Log(LogLevel.Information, IotControllerEventIds.DeviceStatusUpdateSuccess,
@@ -99,8 +106,10 @@ public class IoTController : BaseController<IoTController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [EndpointSummary("Unlock device request")]
     [EndpointDescription("Validates QR token and unlocks the device for a user or owner override.")]
-    public async Task<IActionResult> Unlock([FromBody] UnlockDeviceRequest request)
+    public async Task<IActionResult> Unlock([FromBody] UnlockDeviceRequest request, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, IotControllerEventIds.UnlockAttempt,
             "Unlock attempt device {DeviceId} by user {UserId}",
             request?.DeviceId, request?.UserId);
@@ -117,8 +126,9 @@ public class IoTController : BaseController<IoTController>
         }
 
         var result = request.IsOwnerOverride
-            ? await _smartLockService.UnlockOwnerAsync(request.UserId, request.DeviceId, request.QrCode)
-            : await _smartLockService.UnlockAsync(request.UserId, request.DeviceId, request.QrCode);
+            ? await _smartLockService.UnlockOwnerAsync(request.UserId, request.DeviceId, request.QrCode,
+                cancellationToken)
+            : await _smartLockService.UnlockAsync(request.UserId, request.DeviceId, request.QrCode, cancellationToken);
 
         result.OnSuccess(() =>
                 Log(LogLevel.Information, IotControllerEventIds.UnlockSuccess,
@@ -138,8 +148,10 @@ public class IoTController : BaseController<IoTController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [EndpointSummary("Lock device")]
     [EndpointDescription("Locks the specified device manually.")]
-    public async Task<IActionResult> Lock(int deviceId)
+    public async Task<IActionResult> Lock(int deviceId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, IotControllerEventIds.LockAttempt,
             "Lock attempt for device {DeviceId}", deviceId);
 
@@ -151,7 +163,7 @@ public class IoTController : BaseController<IoTController>
             return StatusCode(StatusCodes.Status400BadRequest, "Device id must be positive");
         }
 
-        var result = await _smartLockService.LockAsync(deviceId);
+        var result = await _smartLockService.LockAsync(deviceId, cancellationToken);
 
         result.OnSuccess(() =>
                 Log(LogLevel.Information, IotControllerEventIds.LockSuccess,
@@ -171,8 +183,11 @@ public class IoTController : BaseController<IoTController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [EndpointSummary("Generate QR code for booking")]
     [EndpointDescription("Generates an encrypted QR payload for a device booking.")]
-    public async Task<IActionResult> GenerateQrCode([FromBody] GenerateQrCodeRequest request)
+    public async Task<IActionResult> GenerateQrCode([FromBody] GenerateQrCodeRequest request,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, IotControllerEventIds.GenerateQrAttempt,
             "Generate QR attempt  booking {BookingId}", request?.BookingId);
 
@@ -184,14 +199,14 @@ public class IoTController : BaseController<IoTController>
             return StatusCode(StatusCodes.Status400BadRequest, "Device and booking must be provided");
         }
 
-        var result = await _qrScannerService.GenerateQrCode(request.BookingId);
+        var result = await _qrScannerService.GenerateQrCode(request.BookingId, cancellationToken);
         result.OnSuccess(() =>
                 Log(LogLevel.Information, IotControllerEventIds.GenerateQrSuccess,
                     "Generated QR for booking {BookingId}", request.BookingId))
             .OnFailure(() =>
                 Log(LogLevel.Error, IotControllerEventIds.GenerateQrFailure,
                     "Failed to generate QR for booking {BookingId}. Error: {Error}",
-                   request.BookingId, result.Error));
+                    request.BookingId, result.Error));
 
         return result.Failure
             ? StatusCode(StatusCodes.Status400BadRequest, result.Error)
@@ -203,8 +218,10 @@ public class IoTController : BaseController<IoTController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [EndpointSummary("Generate QR code for owner access")]
     [EndpointDescription("Generates an encrypted QR payload for the owner of space.")]
-    public async Task<IActionResult> GenerateQrCodeOwner(int deviceId)
+    public async Task<IActionResult> GenerateQrCodeOwner(int deviceId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, IotControllerEventIds.GenerateQrAttemptOwner,
             "Generate QR attempt device {DeviceId} booking {BookingId}",
             deviceId);
@@ -232,13 +249,13 @@ public class IoTController : BaseController<IoTController>
         var isParsed = int.TryParse(userId, out var parsedUserId);
         if (isParsed)
         {
-            var result = await _qrScannerService.GenerateQrCodeOwner(deviceId, parsedUserId);
+            var result = await _qrScannerService.GenerateQrCodeOwner(deviceId, parsedUserId, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, IotControllerEventIds.GenerateQrSuccessOwner,
-                        "Generated QR for device {DeviceId} booking {BookingId}", deviceId))
+                        "Generated QR for device {DeviceId}", deviceId))
                 .OnFailure(() =>
                     Log(LogLevel.Error, IotControllerEventIds.GenerateQrFailureOwner,
-                        "Failed to generate QR for device {DeviceId} booking {BookingId}. Error: {Error}",
+                        "Failed to generate QR for device {DeviceId}. Error: {Error}",
                         deviceId, result.Error));
 
             return result.Failure

@@ -16,8 +16,10 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
     {
     }
 
-    public async Task<Result<IEnumerable<SubscriptionPlanDto>>> GetPlansAsync()
+    public async Task<Result<IEnumerable<SubscriptionPlanDto>>> GetPlansAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var plans = await Context.SubscriptionPlans
@@ -31,7 +33,7 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
                     Duration = sp.Duration,
                     IncludedHours = sp.IncludedHours,
                 })
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             return Result.Success<IEnumerable<SubscriptionPlanDto>>(plans);
         }
@@ -52,11 +54,13 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
         }
     }
 
-    public async Task<Result<SubscriptionPlanDto>> GetPlanByIdAsync(int id)
+    public async Task<Result<SubscriptionPlanDto>> GetPlanByIdAsync(int id, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var plan = await Context.SubscriptionPlans.FindAsync(id);
+            var plan = await Context.SubscriptionPlans.FindAsync(new object[] { id }, cancellationToken);
             if (plan is null)
             {
                 return Result.Fail<SubscriptionPlanDto>($"No subscription plan with id: {id}");
@@ -91,8 +95,11 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
         }
     }
 
-    public async Task<Result> CreateSubscriptionPlanAsync(int ownerId, CreateSubscriptionPlanDto subscriptionPlanDto)
+    public async Task<Result> CreateSubscriptionPlanAsync(int ownerId, CreateSubscriptionPlanDto subscriptionPlanDto,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var plan = new SubscriptionPlan
@@ -108,8 +115,8 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
                 UpdatedAt = DateTime.UtcNow
             };
 
-            await Context.AddAsync(plan);
-            await Context.SaveChangesAsync();
+            await Context.AddAsync(plan, cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }
@@ -132,11 +139,14 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
     public async Task<Result> UpdateSubscriptionPlanAsync(
         int id,
         UpdateSubscriptionPlanDto subscriptionPlanDto,
-        int ownerId)
+        int ownerId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var plan = await Context.SubscriptionPlans.FindAsync(id);
+            var plan = await Context.SubscriptionPlans.FindAsync(new object[] { id }, cancellationToken);
             if (plan is null)
             {
                 return Result.Fail($"No subscription plan with id: {id}");
@@ -148,7 +158,7 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
             plan.Price = subscriptionPlanDto.Price;
 
             Context.Update(plan);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }
@@ -168,11 +178,15 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
         }
     }
 
-    public async Task<Result> DeactivateSubscriptionPlanAsync(int subscriptionPlanId)
+    public async Task<Result> DeactivateSubscriptionPlanAsync(int subscriptionPlanId,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
-            var plan = await Context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Id == subscriptionPlanId);
+            var plan = await Context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Id == subscriptionPlanId,
+                cancellationToken);
             if (plan is null)
             {
                 return Result.Fail($"No subscription plan with id: {subscriptionPlanId}");
@@ -185,7 +199,7 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
 
             plan.IsActive = false;
             Context.Update(plan);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }
@@ -207,13 +221,15 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
         }
     }
 
-    public async Task<Result> DeleteSubscriptionPlanAsync(int subscriptionPlanId)
+    public async Task<Result> DeleteSubscriptionPlanAsync(int subscriptionPlanId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             var plan = await Context.SubscriptionPlans
                 .Include(p => p.Subscriptions)
-                .FirstOrDefaultAsync(p => p.Id == subscriptionPlanId);
+                .FirstOrDefaultAsync(p => p.Id == subscriptionPlanId, cancellationToken);
             if (plan is null)
             {
                 return Result.Fail($"No subscription plan with id: {subscriptionPlanId}");
@@ -226,7 +242,7 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
             }
 
             Context.Remove(plan);
-            await Context.SaveChangesAsync();
+            await Context.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }

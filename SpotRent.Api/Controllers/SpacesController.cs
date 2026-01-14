@@ -31,9 +31,12 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     [HttpPost]
     [EndpointSummary("Creates a new space")]
-    [EndpointDescription("Validates the provided space payload, maps it to a domain entity, and persists the new space.")]
-    public async Task<IActionResult> CreateSpace(CreateSpaceDto spaceDto)
+    [EndpointDescription(
+        "Validates the provided space payload, maps it to a domain entity, and persists the new space.")]
+    public async Task<IActionResult> CreateSpace(CreateSpaceDto spaceDto, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, SpacesControllerEventIds.CreateSpaceAttempt,
             "Create space attempt");
 
@@ -63,7 +66,7 @@ public class SpacesController : BaseController<SpacesController>
             var space = spaceDto.MapToSpace();
             space.CreatedAt = DateTime.UtcNow;
             space.OwnerId = id;
-            var result = await _spaceService.CreateSpaceAsync(space);
+            var result = await _spaceService.CreateSpaceAsync(space, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, SpacesControllerEventIds.CreateSpaceSuccess,
                         "Successfully created space {SpaceId}", result.Value.Id))
@@ -83,8 +86,6 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     [HttpGet]
-    [EndpointSummary("Filters spaces")]
-    [EndpointDescription("Supports filtering by attributes such as type, capacity, rates, and city while honoring pagination and sorting parameters.")]
     public async Task<IActionResult> GetSpaces(
         [FromQuery(Name = "spaceType")] SpaceType? spaceType,
         [FromQuery(Name = "minCapacity")] int? minCapacity,
@@ -96,9 +97,12 @@ public class SpacesController : BaseController<SpacesController>
         [FromQuery(Name = "city")] string city,
         [FromQuery(Name = "attributes")] string attributes,
         [FromQuery(Name = "sort")] string sort,
+        CancellationToken cancellationToken,
         [FromQuery(Name = "limit")] int limit = 50,
         [FromQuery(Name = "offset")] int offset = 0)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, SpacesControllerEventIds.GetSpacesAttempt,
             "Get spaces attempt with limit {Limit} and offset {Offset}", limit, offset);
 
@@ -152,7 +156,7 @@ public class SpacesController : BaseController<SpacesController>
             CaptureTotal = count => totalItems = count
         };
 
-        var result = await _spaceService.FilterSpacesAsync(request);
+        var result = await _spaceService.FilterSpacesAsync(request, cancellationToken);
         result.OnSuccess(() =>
                 Log(LogLevel.Information, SpacesControllerEventIds.GetSpacesSuccess,
                     "Successfully retrieved spaces"))
@@ -176,11 +180,10 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    [HttpGet("{id:int}")]
-    [EndpointSummary("Gets a single space by ID")]
-    [EndpointDescription("Validates the space ID, loads the space with related data, and returns it or appropriate status when missing.")]
-    public async Task<IActionResult> GetSpace(int id)
+    public async Task<IActionResult> GetSpace(int id, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, SpacesControllerEventIds.GetSpaceAttempt,
             "Get space attempt for ID {Id}", id);
 
@@ -191,7 +194,7 @@ public class SpacesController : BaseController<SpacesController>
             return StatusCode(StatusCodes.Status400BadRequest, new ProblemDetails { Detail = "Id is not valid" });
         }
 
-        var result = await _spaceService.GetSpaceByIdAsync(id);
+        var result = await _spaceService.GetSpaceByIdAsync(id, cancellationToken);
         result.OnSuccess(() =>
                 Log(LogLevel.Information, SpacesControllerEventIds.GetSpaceSuccess,
                     "Successfully retrieved space"))
@@ -217,13 +220,14 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    [EndpointSummary("Lists available spaces for a time range in a city")]
-    [EndpointDescription("Checks the requested city and dates (required), queries availability, and returns spaces free during the specified interval.")]
     public async Task<IActionResult> GetAvailableSpaces(
         [FromQuery] DateTime startTime,
         [FromQuery] DateTime endTime,
-        [FromQuery] string city)
+        [FromQuery] string city,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, SpacesControllerEventIds.GetAvailableSpacesAttempt,
             "Get available spaces attempt between {Start} and {End} for {City}",
             startTime, endTime, city);
@@ -236,7 +240,7 @@ public class SpacesController : BaseController<SpacesController>
                 new ProblemDetails { Detail = "City and date range must be provided and valid" });
         }
 
-        var result = await _spaceService.GetAvailableSpacesAsync(startTime, endTime, city);
+        var result = await _spaceService.GetAvailableSpacesAsync(startTime, endTime, city, cancellationToken);
 
         result.OnSuccess(() =>
                 Log(LogLevel.Information, SpacesControllerEventIds.GetAvailableSpacesSuccess,
@@ -258,12 +262,11 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    [HttpGet("{id:int}/schedule")]
-    [EndpointSummary("Gets the booking schedule for a space")]
-    [EndpointDescription("Validates identifiers and date range, then returns the calendar of bookings for the requested space.")]
     public async Task<IActionResult> GetSpaceSchedule(int id, [FromQuery] DateTime? startDate,
-        [FromQuery] DateTime? endDate)
+        [FromQuery] DateTime? endDate, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, SpacesControllerEventIds.GetSpaceScheduleAttempt,
             "Get space schedule attempt for ID {Id}", id);
 
@@ -284,7 +287,7 @@ public class SpacesController : BaseController<SpacesController>
                 new ProblemDetails { Detail = "End date must be after start date" });
         }
 
-        var result = await _spaceService.GetSpaceScheduleAsync(id, rangeStart, rangeEnd);
+        var result = await _spaceService.GetSpaceScheduleAsync(id, rangeStart, rangeEnd, cancellationToken);
         result.OnSuccess(() =>
                 Log(LogLevel.Information, SpacesControllerEventIds.GetSpaceScheduleSuccess,
                     "Successfully retrieved space schedule"))
@@ -308,13 +311,10 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    [HttpPut("{id:int}")]
-    [EndpointSummary("Updates an existing space")]
-    [EndpointDescription("Accepts the edited space details, validates identifiers, and updates the stored space record.")]
-    public async Task<IActionResult> UpdateSpace(int id, UpdateSpaceDto spaceDto)
+    public async Task<IActionResult> UpdateSpace(int id, UpdateSpaceDto spaceDto, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, SpacesControllerEventIds.UpdateSpaceAttempt,
             "Update space attempt for ID {Id}", id);
 
@@ -343,7 +343,7 @@ public class SpacesController : BaseController<SpacesController>
         {
             var space = spaceDto.MapToSpace(id);
             space.Id = id;
-            var result = await _spaceService.UpdateSpaceAsync(space, parsedUserId);
+            var result = await _spaceService.UpdateSpaceAsync(space, parsedUserId, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, SpacesControllerEventIds.UpdateSpaceSuccess,
                         "Successfully updated space {SpaceId}", id))
@@ -370,12 +370,10 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    [HttpDelete("{id:int}")]
-    [EndpointSummary("Deletes a space")]
-    [EndpointDescription("Validates the provided space identifier and removes the associated space if it exists.")]
-    public async Task<IActionResult> DeleteSpace(int id)
+    public async Task<IActionResult> DeleteSpace(int id, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         Log(LogLevel.Information, SpacesControllerEventIds.DeleteSpaceAttempt,
             "Delete space attempt for ID {Id}", id);
 
@@ -402,7 +400,7 @@ public class SpacesController : BaseController<SpacesController>
         var isParsed = int.TryParse(userId, out var parsedUserId);
         if (isParsed)
         {
-            var result = await _spaceService.DeleteSpaceAsync(id, parsedUserId);
+            var result = await _spaceService.DeleteSpaceAsync(id, parsedUserId, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, SpacesControllerEventIds.DeleteSpaceSuccess,
                         "Successfully deleted space {SpaceId}", id))

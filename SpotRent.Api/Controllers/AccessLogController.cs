@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using SpotRent.Api.Dtos.Iot;
 using SpotRent.Api.Logging;
 using SpotRent.Domain.Extensions;
@@ -29,10 +28,12 @@ public class AccessLogController : BaseController<AccessLogController>
     [EndpointSummary("Create access log entry")]
     [EndpointDescription(
         "Creates an access log entry for a user device access attempt. Returns created id on success.")]
-    public async Task<IActionResult> CreateLogEntry(LogAccessRequest request)
+    public async Task<IActionResult> CreateLogEntry(LogAccessRequest request, CancellationToken cancellationToken)
     {
         Log(LogLevel.Information, AccessLogControllerEventIds.CreateAccessLogAttempt,
             "Access log creation attempt");
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (request is null || request.UserId < 1 || request.DeviceId < 1 || !request.BookingId.HasValue)
         {
@@ -47,6 +48,7 @@ public class AccessLogController : BaseController<AccessLogController>
             request.DeviceId,
             request.AccessType,
             request.BookingId.Value,
+            cancellationToken: cancellationToken,
             request.IsSuccessful,
             request.ErrorMessage);
 
@@ -72,10 +74,12 @@ public class AccessLogController : BaseController<AccessLogController>
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [EndpointSummary("Create owner access log entry")]
     [EndpointDescription("Creates an access log entry initiated by an owner. Returns created id on success.")]
-    public async Task<IActionResult> CreateOwnerLogEntry(LogAccessRequest request)
+    public async Task<IActionResult> CreateOwnerLogEntry(LogAccessRequest request, CancellationToken cancellationToken)
     {
         Log(LogLevel.Information, AccessLogControllerEventIds.CreateAccessLogAttemptOwner,
             "Access log creation attempt by owner");
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (request is null || request.UserId < 1 || request.DeviceId < 1)
         {
@@ -89,6 +93,7 @@ public class AccessLogController : BaseController<AccessLogController>
             request.UserId,
             request.DeviceId,
             request.AccessType,
+            cancellationToken: cancellationToken,
             request.IsSuccessful,
             request.ErrorMessage);
 
@@ -114,10 +119,12 @@ public class AccessLogController : BaseController<AccessLogController>
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [EndpointSummary("Get space access logs")]
     [EndpointDescription("Retrieves access logs for a specific space.")]
-    public async Task<IActionResult> GetSpaceLogs(int spaceId)
+    public async Task<IActionResult> GetSpaceLogs(int spaceId, CancellationToken cancellationToken)
     {
         Log(LogLevel.Information, AccessLogControllerEventIds.GetSpaceLogsAttempt,
             "Get space logs attempt for space {SpaceId}", spaceId);
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (spaceId < 1)
         {
@@ -127,7 +134,7 @@ public class AccessLogController : BaseController<AccessLogController>
             return StatusCode(StatusCodes.Status400BadRequest, "Space id is not valid");
         }
 
-        var result = await _accessLogService.GetSpaceAccessLogsAsync(spaceId);
+        var result = await _accessLogService.GetSpaceAccessLogsAsync(spaceId, cancellationToken);
         result.OnSuccess(() =>
                 Log(LogLevel.Information, AccessLogControllerEventIds.GetSpaceLogsSuccess,
                     "Retrieved space access logs for space {SpaceId}", spaceId))
@@ -143,10 +150,12 @@ public class AccessLogController : BaseController<AccessLogController>
 
     // [Authorize(Roles = "Owner")]
     [HttpGet("owner/{ownerId:int}")]
-    public async Task<IActionResult> GetOwnerLogs(int ownerId)
+    public async Task<IActionResult> GetOwnerLogs(int ownerId, CancellationToken cancellationToken)
     {
         Log(LogLevel.Information, AccessLogControllerEventIds.GetOwnerLogsAttempt,
             "Get owner logs attempt for owner {OwnerId}", ownerId);
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (ownerId < 1)
         {
@@ -156,7 +165,7 @@ public class AccessLogController : BaseController<AccessLogController>
             return StatusCode(StatusCodes.Status400BadRequest, "Owner id is not valid");
         }
 
-        var result = await _accessLogService.GetOwnerAccessLogsAsync(ownerId);
+        var result = await _accessLogService.GetOwnerAccessLogsAsync(ownerId, cancellationToken);
 
         result.OnSuccess(() =>
                 Log(LogLevel.Information, AccessLogControllerEventIds.GetOwnerLogsSuccess,
@@ -180,10 +189,12 @@ public class AccessLogController : BaseController<AccessLogController>
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [EndpointSummary("Get user access logs")]
     [EndpointDescription("Retrieves access logs for a specific user.")]
-    public async Task<IActionResult> GetUserLogs(int userId)
+    public async Task<IActionResult> GetUserLogs(int userId, CancellationToken cancellationToken)
     {
         Log(LogLevel.Information, AccessLogControllerEventIds.GetUserLogsAttempt,
             "Get user logs attempt for user {UserId}", userId);
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (userId < 1)
         {
@@ -193,7 +204,7 @@ public class AccessLogController : BaseController<AccessLogController>
             return StatusCode(StatusCodes.Status400BadRequest, "User id is not valid");
         }
 
-        var result = await _accessLogService.GetUserAccessLogsAsync(userId);
+        var result = await _accessLogService.GetUserAccessLogsAsync(userId, cancellationToken);
         result.OnSuccess(() =>
                 Log(LogLevel.Information, AccessLogControllerEventIds.GetUserLogsSuccess,
                     "Retrieved access logs for user {UserId}", userId))
@@ -217,10 +228,12 @@ public class AccessLogController : BaseController<AccessLogController>
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [EndpointSummary("Get access log by id")]
     [EndpointDescription("Retrieves a single access log entry by its identifier. Returns 404 if not found.")]
-    public async Task<IActionResult> GetLogById(int id)
+    public async Task<IActionResult> GetLogById(int id, CancellationToken cancellationToken)
     {
         Log(LogLevel.Information, AccessLogControllerEventIds.GetLogByIdAttempt,
             "Get access log by id attempt for id {AccessLogId}", id);
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (id < 1)
         {
@@ -230,7 +243,7 @@ public class AccessLogController : BaseController<AccessLogController>
             return StatusCode(StatusCodes.Status400BadRequest, "Id is not valid");
         }
 
-        var result = await _accessLogService.GetLogById(id);
+        var result = await _accessLogService.GetLogById(id, cancellationToken);
         result.OnSuccess(() =>
                 Log(LogLevel.Information, AccessLogControllerEventIds.GetLogByIdSuccess,
                     "Retrieved access log with id {AccessLogId}", id))
