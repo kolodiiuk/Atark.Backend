@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 
 namespace SpotRent.Api.Controllers;
@@ -11,6 +12,11 @@ public abstract class BaseController<TController> : ControllerBase
     {
         Logger = logger;
     }
+
+    protected int? UserId => int.TryParse(
+        HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value,  out var userId)
+            ? userId
+            : null;
 
     protected void Log(
         LogLevel logLevel,

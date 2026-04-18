@@ -54,6 +54,45 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
         }
     }
 
+    public async Task<Result<IEnumerable<SubscriptionPlanDto>>> GetOwnerPlansAsync(
+        int userId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            var plans = await Context.SubscriptionPlans
+                .Where(sp => sp.OwnerId == userId)
+                .Select(sp => new SubscriptionPlanDto
+                {
+                    Id = sp.Id,
+                    Name = sp.Name,
+                    Description = sp.Description,
+                    Price = sp.Price,
+                    Duration = sp.Duration,
+                    IncludedHours = sp.IncludedHours,
+                })
+                .ToListAsync(cancellationToken);
+
+            return Result.Success<IEnumerable<SubscriptionPlanDto>>(plans);
+        }
+        catch (NpgsqlException e)
+        {
+            Log(LogLevel.Error, SubscriptionPlanServiceEventIds.GetPlans,
+                "DB error retrieving subscription plans. Error: {error}", e.Message);
+
+            return Result.Fail<IEnumerable<SubscriptionPlanDto>>($"DB error: {e.Message}.");
+        }
+        catch (Exception e)
+        {
+            Log(LogLevel.Error, SubscriptionPlanServiceEventIds.GetPlans,
+                "Error retrieving subscription plans. Error: {error}", e.Message);
+
+            return Result.Fail<IEnumerable<SubscriptionPlanDto>>(
+                $"Failure retrieving subscription plans: {e.Message}.");
+        }
+    }
+
     public async Task<Result<SubscriptionPlanDto>> GetPlanByIdAsync(int id, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

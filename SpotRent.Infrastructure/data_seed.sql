@@ -5,14 +5,6 @@ INSERT INTO asp_net_roles (id, name, normalized_name, concurrency_stamp) VALUES
 (1, 'User', 'USER', 'user-stamp-003'),
 (4, 'Manager', 'MANAGER', 'manager-stamp-004');
 
--- Insert Subscription Plans
-INSERT INTO subscription_plans (id, name, description, price, duration, included_hours, is_active, owner_id, created_at, updated_at) VALUES
-(1, 'Basic Plan', 'Perfect for occasional users', 29.99, 30, 10, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(2, 'Standard Plan', 'Great for regular coworkers', 79.99, 30, 40, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(3, 'Premium Plan', 'Unlimited access for professionals', 149.99, 30, 100, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(4, 'Enterprise Plan', 'Custom solution for teams', 499.99, 30, 500, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(5, 'Student Plan', 'Special pricing for students', 19.99, 30, 8, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-
 -- Insert Users (password hash is for "Password123!")
 INSERT INTO asp_net_users (id, first_name, last_name, role, user_name, normalized_user_name, email, normalized_email,
     email_confirmed, password_hash, security_stamp, concurrency_stamp, phone_number, phone_number_confirmed,
@@ -140,6 +132,14 @@ INSERT INTO devices (id, space_id, device_name, status, is_online, installed_at,
 (5, 5, 'Workshop Controller', 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 (6, 6, 'Focus Room Lock', 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 (7, 8, 'Theater Access Control', 1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+-- Insert Subscription Plans
+INSERT INTO subscription_plans (id, name, description, price, duration, included_hours, is_active, owner_id, created_at, updated_at) VALUES
+(1, 'Basic Plan', 'Perfect for occasional users', 29.99, 30, 10, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(2, 'Standard Plan', 'Great for regular coworkers', 79.99, 30, 40, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(3, 'Premium Plan', 'Unlimited access for professionals', 149.99, 30, 100, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(4, 'Enterprise Plan', 'Custom solution for teams', 499.99, 30, 500, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(5, 'Student Plan', 'Special pricing for students', 19.99, 30, 8, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 -- Insert Subscriptions
 INSERT INTO subscriptions (id, user_id, subscription_plan_id, price, start_date, end_date, status, hours_used, created_at, updated_at) VALUES

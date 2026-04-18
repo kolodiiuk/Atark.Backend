@@ -9,7 +9,7 @@ using SpotRent.Services.Subscriptions;
 namespace SpotRent.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/subscription-plans")]
 public class SubscriptionPlanController : BaseController<SubscriptionPlanController>
 {
     private readonly ISubscriptionPlanService _subscriptionPlanService;
@@ -67,6 +67,30 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
         cancellationToken.ThrowIfCancellationRequested();
 
         var result = await _subscriptionPlanService.GetPlansAsync(cancellationToken);
+        if (result.Failure)
+        {
+            return StatusCode(StatusCodes.Status400BadRequest, result.Error);
+        }
+
+        return StatusCode(StatusCodes.Status200OK, result.Value);
+    }
+
+    [HttpGet("owner")]
+    [Authorize(Roles = "Owner")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [EndpointSummary("Lists owner's subscription plans.")]
+    [EndpointDescription("Retrieves owner's subscription plan.")]
+    public async Task<IActionResult> GetOwnerPlansAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (UserId == null)
+        {
+            return Problem(title: "No user id specified", statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        var result = await _subscriptionPlanService.GetOwnerPlansAsync(UserId ?? 0, cancellationToken);
         if (result.Failure)
         {
             return StatusCode(StatusCodes.Status400BadRequest, result.Error);
