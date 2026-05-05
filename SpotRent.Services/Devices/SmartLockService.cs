@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using SpotRent.Domain.Common;
 using SpotRent.Domain.Entities;
 using SpotRent.Domain.Enums;
@@ -244,5 +245,62 @@ public class SmartLockService : BaseService<SmartLockService>, ISmartLockService
 
             return Result.Fail($"Error locking device: {e.Message}");
         }
+    }
+
+    public async Task<Result<int>> GetDeviceIdAsync(int id, bool isSpaceId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int? deviceId = null;
+            if (isSpaceId)
+            {
+                deviceId = await GetDeviceIdBySpaceAsync(id, cancellationToken);
+
+                return Result.Success(deviceId.Value);
+            }
+            else
+            {
+                deviceId = await GetDeviceIdByBookingAsync(id, cancellationToken);
+
+                return Result.Success(deviceId.Value);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (NpgsqlException e)
+        {
+            return Result.Fail<int>($"DB problems:{e.Message}");
+        }
+        catch (Exception e)
+        {
+            return Result.Fail<int>($"Error getting device: {e.Message}");
+        }
+    }
+
+    private async Task<int?> GetDeviceIdByBookingAsync(int id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var deviceId = await
+            (from booking in Context.Bookings
+            join space in Context.Spaces on booking.SpaceId equals space.Id
+            join device in Context.Devices on space.Id equals device.SpaceId
+            where booking.Id == id
+            select device.Id).FirstOrDefaultAsync(cancellationToken);
+
+        return deviceId;
+    }
+
+    private async Task<int> GetDeviceIdBySpaceAsync(int id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var deviceId = await Context.Devices
+            .Where(d => d.SpaceId == id)
+            .Select(d => d.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return deviceId;
     }
 }

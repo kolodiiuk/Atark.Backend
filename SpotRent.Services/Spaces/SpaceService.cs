@@ -283,6 +283,29 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
         }
     }
 
+    public async Task<Result<IEnumerable<Space>>> GetOwnerSpacesAsync(int ownerId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        try
+        {
+            var spaces = await Context.Spaces.Where(s => s.OwnerId == ownerId).ToListAsync(ct);
+
+            return Result.Success<IEnumerable<Space>>(spaces);
+        }
+        catch (OperationCanceledException e) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (NpgsqlException e)
+        {
+            return Result.Fail<IEnumerable<Space>>($"DB error: {e.Message}.");
+        }
+        catch (Exception e)
+        {
+            return Result.Fail<IEnumerable<Space>>($"Failure updating space: {e.Message}");
+        }
+    }
+
     public async Task<Result> UpdateSpaceAsync(Space space, int ownerId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

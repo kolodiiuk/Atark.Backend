@@ -101,6 +101,54 @@ public class IoTController : BaseController<IoTController>
             : StatusCode(StatusCodes.Status200OK);
     }
 
+    [HttpPost("device-id")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [EndpointSummary("Resolve a device id")]
+    [EndpointDescription("Looks up the device identifier using either a space id or a booking id and returns it in a DTO.")]
+    public async Task<ActionResult<DeviceIdResponse>> GetDeviceId(DeviceIdLookupRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        Log(LogLevel.Information, IotControllerEventIds.GetDeviceIdAttempt,
+            "Device id lookup attempt for {LookupType} id {Id}",
+            request?.IsSpaceId == true ? "space" : "booking", request?.Id);
+
+        if (request is null || request.Id < 1)
+        {
+            Log(LogLevel.Warning, IotControllerEventIds.GetDeviceIdInvalid,
+                "Device id lookup payload is invalid");
+
+            return StatusCode(StatusCodes.Status400BadRequest, "Id must be provided");
+        }
+
+        var result = await _smartLockService.GetDeviceIdAsync(request.Id, request.IsSpaceId, cancellationToken);
+        result.OnSuccess(() =>
+                Log(LogLevel.Information, IotControllerEventIds.GetDeviceIdSuccess,
+                    "Resolved device id {DeviceId} for {LookupType} id {Id}",
+                    result.Value,
+                    request.IsSpaceId ? "space" : "booking",
+                    request.Id))
+            .OnFailure(() =>
+                Log(LogLevel.Warning, IotControllerEventIds.GetDeviceIdFailure,
+                    "Failed to resolve device id for {LookupType} id {Id}. Error: {Error}",
+                    request.IsSpaceId ? "space" : "booking",
+                    request.Id,
+                    result.Error));
+
+        if (result.Failure)
+        {
+            return result.Error.Contains("doesn't exist", StringComparison.OrdinalIgnoreCase) ||
+                   result.Error.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
+                ? StatusCode(StatusCodes.Status404NotFound, result.Error)
+                : StatusCode(StatusCodes.Status500InternalServerError, result.Error);
+        }
+
+        return StatusCode(StatusCodes.Status200OK, new DeviceIdResponse(result.Value));
+    }
+
     [HttpPost("unlock")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

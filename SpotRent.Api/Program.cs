@@ -7,7 +7,6 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
 using Serilog.Events;
-using SpotRent.Api.Dtos;
 using SpotRent.Api.Dtos.Payment;
 using SpotRent.Api.Middleware;
 using SpotRent.Domain.Entities;

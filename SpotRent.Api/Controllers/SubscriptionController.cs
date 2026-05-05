@@ -195,10 +195,10 @@ public class SubscriptionController : BaseController<SubscriptionController>
     }
 
     [Authorize(Roles = "User")]
-    [HttpPut("{subscriptionId:int}/change")]
+    [HttpPatch("{subscriptionId:int}/change")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult> ChangeSubscriptionAsync(int subscriptionId, int newPlanId, CancellationToken cancellationToken)
+    public async Task<ActionResult> ChangeSubscriptionAsync(int subscriptionId, [FromBody] int newPlanId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 

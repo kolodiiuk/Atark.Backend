@@ -14,4 +14,6 @@ public interface ISmartLockService
     Task<Result<bool>> UnlockOwnerAsync(int userId, int deviceId, string qrCode, CancellationToken cancellationToken);
 
     Task<Result> LockAsync(int deviceId, CancellationToken cancellationToken);
+
+    Task<Result<int>> GetDeviceIdAsync(int id, bool isSpaceId, CancellationToken cancellationToken);
 }

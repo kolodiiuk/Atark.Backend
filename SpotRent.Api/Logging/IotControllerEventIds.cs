@@ -47,4 +47,12 @@ internal static class IotControllerEventIds
     internal static readonly EventId GenerateQrSuccessOwner = new(9021, nameof(GenerateQrSuccessOwner));
 
     internal static readonly EventId GenerateQrAttemptOwner = new(9022, nameof(GenerateQrAttemptOwner));
+
+    internal static readonly EventId GetDeviceIdAttempt = new(9023, nameof(GetDeviceIdAttempt));
+
+    internal static readonly EventId GetDeviceIdInvalid = new(9024, nameof(GetDeviceIdInvalid));
+
+    internal static readonly EventId GetDeviceIdSuccess = new(9025, nameof(GetDeviceIdSuccess));
+
+    internal static readonly EventId GetDeviceIdFailure = new(9026, nameof(GetDeviceIdFailure));
 }

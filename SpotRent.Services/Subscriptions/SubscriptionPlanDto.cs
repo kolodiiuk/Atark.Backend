@@ -15,4 +15,10 @@ public class SubscriptionPlanDto
     public decimal Price { get; set; }
 
     public Duration Duration { get; set; }
+
+    public int? OwnerId { get; set; }
+
+    public bool IsActive { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
 }

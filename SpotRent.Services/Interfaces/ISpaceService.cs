@@ -24,4 +24,6 @@ public interface ISpaceService
 
     Task<Result<SpaceSchedule>> GetSpaceScheduleAsync(int spaceId, DateTime? startDate, DateTime? endDate,
         CancellationToken cancellationToken);
+
+    Task<Result<IEnumerable<Space>>> GetOwnerSpacesAsync(int ownerId, CancellationToken ct);
 }

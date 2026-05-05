@@ -32,6 +32,9 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
                     Price = sp.Price,
                     Duration = sp.Duration,
                     IncludedHours = sp.IncludedHours,
+                    OwnerId = sp.OwnerId,
+                    IsActive = true,
+                    UpdatedAt = sp.UpdatedAt
                 })
                 .ToListAsync(cancellationToken);
 
@@ -71,6 +74,9 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
                     Price = sp.Price,
                     Duration = sp.Duration,
                     IncludedHours = sp.IncludedHours,
+                    OwnerId = userId,
+                    IsActive = sp.IsActive,
+                    UpdatedAt = sp.UpdatedAt
                 })
                 .ToListAsync(cancellationToken);
 
@@ -113,6 +119,9 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
                 Price = plan.Price,
                 Duration = plan.Duration,
                 IncludedHours = plan.IncludedHours,
+                OwnerId = plan.OwnerId,
+                IsActive = plan.IsActive,
+                UpdatedAt = plan.UpdatedAt
             };
 
             return Result.Success(planDto);

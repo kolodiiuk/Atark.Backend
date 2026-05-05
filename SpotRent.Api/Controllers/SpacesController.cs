@@ -322,8 +322,35 @@ public class SpacesController : BaseController<SpacesController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [HttpGet("owner")]
+    [EndpointSummary("Gets owner's spaces")]
+    [EndpointDescription("Gets spaces of currently authorised owner.")]
+    public async Task<IActionResult> GetOwnerSpacesAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (UserId is null)
+        {
+            return Unauthorized();
+        }
+
+        var res = await _spaceService.GetOwnerSpacesAsync(UserId.Value, ct);
+        res.OnFailure(() => Log(LogLevel.Warning, new EventId(7777), res.Error));
+
+        return res.IsSuccess switch
+        {
+            true => Ok(res.Value.Select(SpaceDto.MapSpace)),
+            _ => Problem(title: "Problem retrieving spaces", detail: res.Error,
+                statusCode: StatusCodes.Status400BadRequest)
+        };
+    }
+
+    [Authorize(Roles = "Owner")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    [HttpPut("{id:int}")]
+    [HttpPatch("{id:int}")]
     [EndpointSummary("Updates an existing space")]
     [EndpointDescription("Accepts the edited space details, validates identifiers, and updates the stored space record.")]
     public async Task<IActionResult> UpdateSpace(int id, UpdateSpaceDto spaceDto, CancellationToken cancellationToken)

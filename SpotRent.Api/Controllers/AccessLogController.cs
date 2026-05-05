@@ -8,7 +8,7 @@ using SpotRent.Services.Interfaces;
 namespace SpotRent.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/access-log")]
 public class AccessLogController : BaseController<AccessLogController>
 {
     private readonly IAccessLogService _accessLogService;
