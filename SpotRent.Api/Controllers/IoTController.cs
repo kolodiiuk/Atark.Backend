@@ -271,7 +271,7 @@ public class IoTController : BaseController<IoTController>
         cancellationToken.ThrowIfCancellationRequested();
 
         Log(LogLevel.Information, IotControllerEventIds.GenerateQrAttemptOwner,
-            "Generate QR attempt device {DeviceId} booking {BookingId}",
+            "Generate owner QR attempt for device {DeviceId}",
             deviceId);
 
         if (deviceId < 1)
@@ -279,7 +279,7 @@ public class IoTController : BaseController<IoTController>
             Log(LogLevel.Warning, IotControllerEventIds.GenerateQrInvalid,
                 "Generate QR payload invalid");
 
-            return StatusCode(StatusCodes.Status400BadRequest, "Device and booking must be provided");
+            return StatusCode(StatusCodes.Status400BadRequest, "Device must be provided");
         }
 
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
