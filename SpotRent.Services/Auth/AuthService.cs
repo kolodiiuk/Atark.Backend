@@ -243,7 +243,9 @@ public class AuthService : IAuthService
             Id = storedRefreshToken.User.Id,
             Email = storedRefreshToken.User.Email,
             FirstName = storedRefreshToken.User.FirstName,
-            LastName = storedRefreshToken.User.LastName
+            LastName = storedRefreshToken.User.LastName,
+            Role = storedRefreshToken.User.Role,
+            PhoneNumber = storedRefreshToken.User.PhoneNumber
         });
     }
 

@@ -1,4 +1,6 @@
-﻿namespace SpotRent.Services.Auth;
+﻿using SpotRent.Domain.Enums;
+
+namespace SpotRent.Services.Auth;
 
 public class RefreshTokenResponse
 {
@@ -13,4 +15,8 @@ public class RefreshTokenResponse
     public string FirstName { get; set; }
     
     public string LastName { get; set; }
+
+    public Role Role { get; set; }
+
+    public string? PhoneNumber { get; set; }
 }

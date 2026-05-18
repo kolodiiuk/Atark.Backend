@@ -14,6 +14,10 @@ namespace SpotRent.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController : BaseController<AuthController>
 {
+    private const string RefreshTokenCookieName = "spotrent_refresh_token";
+
+    private const string RefreshTokenCookiePath = "/api/auth";
+
     private readonly IAuthService _authService;
 
     private readonly IConfiguration _configuration;
@@ -31,7 +35,7 @@ public class AuthController : BaseController<AuthController>
     [HttpPost("google")]
     [EndpointSummary("Signs in a user via Google authentication.")]
     [EndpointDescription(
-        "Validates the Google ID token, creates or retrieves the SpotRent user, and issues JWT plus refresh tokens.")]
+        "Validates the Google ID token, creates or retrieves the SpotRent user, returns an access token, and sets a refresh-token cookie.")]
     public async Task<ActionResult<LoginResponse>> GoogleSignIn([FromBody] GoogleSignInRequest request,
         CancellationToken cancellationToken)
     {
@@ -61,12 +65,13 @@ public class AuthController : BaseController<AuthController>
         }
 
         var tokens = await _authService.GenerateTokens(userResult.Value, cancellationToken);
+        SetRefreshTokenCookie(tokens.Item2);
         var tokenExpiration = DateTime.UtcNow.AddMinutes(
             Convert.ToDouble(_configuration["Jwt:TokenExpirationMinutes"]));
         var response = new LoginResponse
         {
             Token = tokens.Item1,
-            RefreshToken = tokens.Item2,
+            RefreshToken = string.Empty,
             Expiration = tokenExpiration,
             User = new UserDto
             {
@@ -148,7 +153,8 @@ public class AuthController : BaseController<AuthController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [HttpPost("login")]
     [EndpointSummary("Authenticates a user with email and password.")]
-    [EndpointDescription("Validates user credentials and returns access plus refresh tokens for the account.")]
+    [EndpointDescription(
+        "Validates user credentials, returns an access token, and sets a refresh-token cookie for the account.")]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
@@ -176,12 +182,13 @@ public class AuthController : BaseController<AuthController>
         }
 
         var tokens = await _authService.GenerateTokens(validationResult.Value, cancellationToken);
+        SetRefreshTokenCookie(tokens.Item2);
         var tokenExpiration = DateTime.UtcNow.AddMinutes(
             Convert.ToDouble(_configuration["Jwt:TokenExpirationMinutes"]));
         var response = new LoginResponse
         {
             Token = tokens.Item1,
-            RefreshToken = tokens.Item2,
+            RefreshToken = string.Empty,
             Expiration = tokenExpiration,
             User = new UserDto
             {
@@ -206,33 +213,36 @@ public class AuthController : BaseController<AuthController>
     [HttpPost("refresh")]
     [EndpointSummary("Refreshes an access token using a refresh token.")]
     [EndpointDescription(
-        "Validates the supplied refresh token, regenerates JWT credentials, and returns updated token metadata.")]
-    public async Task<ActionResult<LoginResponse>> Refresh([FromBody] RefreshTokenRequest request,
+        "Validates the supplied refresh token from cookie or body, rotates the refresh-token cookie, and returns a new access token.")]
+    public async Task<ActionResult<LoginResponse>> Refresh([FromBody] RefreshTokenRequest? request,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         Log(LogLevel.Information, AuthControllerEventIds.TokenRefreshAttempt, "Token refresh attempt");
 
-        if (string.IsNullOrEmpty(request.RefreshToken))
+        var refreshToken = ResolveRefreshToken(request?.RefreshToken);
+        if (string.IsNullOrEmpty(refreshToken))
         {
             Log(LogLevel.Warning, AuthControllerEventIds.TokenRefreshEmpty, "Refresh token is empty");
             return BadRequest(new { message = "Refresh token is required" });
         }
 
-        var result = await _authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
+        var result = await _authService.RefreshTokenAsync(refreshToken, cancellationToken);
         result.OnFailure(() =>
             Log(LogLevel.Warning, AuthControllerEventIds.TokenRefreshFailed,
                 "Token refresh failed: {Error}", result.Error));
         if (result.Failure)
         {
+            ClearRefreshTokenCookie();
             return Unauthorized(new { message = result.Error });
         }
 
+        SetRefreshTokenCookie(result.Value.RefreshToken);
         LoginResponse response = new LoginResponse
         {
             Token = result.Value.Token,
-            RefreshToken = result.Value.RefreshToken,
+            RefreshToken = string.Empty,
             Expiration = DateTime.UtcNow.AddMinutes(
                 Convert.ToDouble(_configuration["Jwt:TokenExpirationMinutes"])),
             User = new UserDto
@@ -241,6 +251,8 @@ public class AuthController : BaseController<AuthController>
                 Email = result.Value.Email,
                 FirstName = result.Value.FirstName,
                 LastName = result.Value.LastName,
+                Role = result.Value.Role,
+                PhoneNumber = result.Value.PhoneNumber
             }
         };
 
@@ -254,26 +266,29 @@ public class AuthController : BaseController<AuthController>
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [HttpPost("logout")]
     [EndpointSummary("Logs out a user by revoking the refresh token.")]
-    [EndpointDescription("Ensures a refresh token is provided and invalidates it to end the user session.")]
-    public async Task<IActionResult> Logout([FromBody] LogoutDto request, CancellationToken cancellationToken)
+    [EndpointDescription(
+        "Reads the refresh token from cookie or body, revokes it, and clears the refresh-token cookie to end the user session.")]
+    public async Task<IActionResult> Logout([FromBody] LogoutDto? request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         Log(LogLevel.Information, AuthControllerEventIds.LogoutAttempt, "Logout attempt");
 
-        if (string.IsNullOrEmpty(request.RefreshToken))
+        var refreshToken = ResolveRefreshToken(request?.RefreshToken);
+        if (string.IsNullOrEmpty(refreshToken))
         {
             Log(LogLevel.Warning, AuthControllerEventIds.LogoutEmptyToken,
                 "Logout failed: refresh token is empty");
             return BadRequest(new { message = "Refresh token is required" });
         }
 
-        var result = await _authService.LogoutAsync(request.RefreshToken, cancellationToken);
+        var result = await _authService.LogoutAsync(refreshToken, cancellationToken);
         result.OnFailure(() =>
                 Log(LogLevel.Warning, AuthControllerEventIds.LogoutFailed, "Logout failed: {Error}",
                     result.Error))
             .OnSuccess(() =>
                 Log(LogLevel.Information, AuthControllerEventIds.LogoutSuccess, "Successfully logged out user"));
+        ClearRefreshTokenCookie();
         if (result.Failure)
         {
             return BadRequest(new { message = result.Error });
@@ -446,5 +461,45 @@ public class AuthController : BaseController<AuthController>
         }
 
         return Ok();
+    }
+
+    private string ResolveRefreshToken(string requestToken)
+    {
+        if (!string.IsNullOrWhiteSpace(requestToken))
+        {
+            return requestToken;
+        }
+
+        return Request.Cookies.TryGetValue(RefreshTokenCookieName, out var cookieToken) &&
+               !string.IsNullOrWhiteSpace(cookieToken)
+            ? cookieToken
+            : null;
+    }
+
+    private void SetRefreshTokenCookie(string refreshToken)
+    {
+        var refreshExpirationDays = Convert.ToDouble(_configuration["Jwt:RefreshTokenExpirationDays"]);
+
+        Response.Cookies.Append(RefreshTokenCookieName, refreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            Expires = DateTimeOffset.UtcNow.AddDays(refreshExpirationDays),
+            Path = RefreshTokenCookiePath,
+            IsEssential = true
+        });
+    }
+
+    private void ClearRefreshTokenCookie()
+    {
+        Response.Cookies.Delete(RefreshTokenCookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            Path = RefreshTokenCookiePath,
+            IsEssential = true
+        });
     }
 }

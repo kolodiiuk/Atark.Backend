@@ -75,11 +75,34 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAllOrigins", policy =>
+    var defaultAllowedOrigins = new[]
     {
-        policy.AllowAnyOrigin()
+        "http://localhost:4200",
+        "https://localhost:4200",
+        "http://localhost:4201",
+        "https://localhost:4201",
+        "http://localhost:5173",
+        "https://localhost:5173",
+        "http://127.0.0.1:4200",
+        "https://127.0.0.1:4200",
+        "http://127.0.0.1:4201",
+        "https://127.0.0.1:4201",
+        "http://127.0.0.1:5173",
+        "https://127.0.0.1:5173"
+    };
+    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ??
+                         defaultAllowedOrigins;
+    if (allowedOrigins.Length == 0)
+    {
+        throw new InvalidOperationException("CORS allowed origins cannot be empty.");
+    }
+
+    options.AddPolicy("AllowFrontendWithCredentials", policy =>
+    {
+        policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 builder.Services.AddControllers();
@@ -186,7 +209,7 @@ try
     }
 
     app.UseMiddleware<ExceptionHandlerMiddleware>();
-    app.UseCors("AllowAllOrigins");
+    app.UseCors("AllowFrontendWithCredentials");
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();
