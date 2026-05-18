@@ -43,6 +43,9 @@ public class SpotRentDbContext : IdentityDbContext<User, IdentityRole<int>, int>
     {
         base.OnConfiguring(optionsBuilder);
 
-        optionsBuilder.UseNpgsql("Server=localhost;Port=5432;Database=atark;Username=myuser;Password=mypassword;");
+        if (!optionsBuilder.IsConfigured)
+        {
+            optionsBuilder.UseNpgsql("Server=localhost;Port=5432;Database=atark;Username=myuser;Password=mypassword;");
+        }
     }
 }

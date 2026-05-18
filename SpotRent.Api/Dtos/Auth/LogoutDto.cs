@@ -2,5 +2,5 @@ namespace SpotRent.Api.Dtos.Auth;
 
 public class LogoutDto
 {
-    public string RefreshToken { get; set; }
+    public string? RefreshToken { get; set; }
 }
