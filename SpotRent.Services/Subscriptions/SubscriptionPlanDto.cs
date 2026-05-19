@@ -18,6 +18,8 @@ public class SubscriptionPlanDto
 
     public int? OwnerId { get; set; }
 
+    public string Owner { get; set; }
+
     public bool IsActive { get; set; }
 
     public DateTime UpdatedAt { get; set; }

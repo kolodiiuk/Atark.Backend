@@ -23,6 +23,7 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
         try
         {
             var plans = await Context.SubscriptionPlans
+                .Include(sp => sp.Owner)
                 .Where(sp => sp.IsActive == true)
                 .Select(sp => new SubscriptionPlanDto
                 {
@@ -32,7 +33,7 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
                     Price = sp.Price,
                     Duration = sp.Duration,
                     IncludedHours = sp.IncludedHours,
-                    OwnerId = sp.OwnerId,
+                    Owner = $"{sp.Owner.FirstName} {sp.Owner.LastName}",
                     IsActive = true,
                     UpdatedAt = sp.UpdatedAt
                 })
@@ -105,26 +106,29 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
 
         try
         {
-            var plan = await Context.SubscriptionPlans.FindAsync(new object[] { id }, cancellationToken);
+            var plan = await Context.SubscriptionPlans
+                .Include(sp => sp.Owner)
+                .Where(sp => sp.Id == id)
+                .Select(sp => new SubscriptionPlanDto
+                {
+                    Id = sp.Id,
+                    Name = sp.Name,
+                    Description = sp.Description,
+                    Price = sp.Price,
+                    Duration = sp.Duration,
+                    IncludedHours = sp.IncludedHours,
+                    OwnerId = sp.OwnerId,
+                    Owner = $"{sp.Owner.FirstName} {sp.Owner.LastName}",
+                    IsActive = sp.IsActive,
+                    UpdatedAt = sp.UpdatedAt
+                })
+                .FirstOrDefaultAsync(cancellationToken);
             if (plan is null)
             {
                 return Result.Fail<SubscriptionPlanDto>($"No subscription plan with id: {id}");
             }
 
-            var planDto = new SubscriptionPlanDto
-            {
-                Id = plan.Id,
-                Name = plan.Name,
-                Description = plan.Description,
-                Price = plan.Price,
-                Duration = plan.Duration,
-                IncludedHours = plan.IncludedHours,
-                OwnerId = plan.OwnerId,
-                IsActive = plan.IsActive,
-                UpdatedAt = plan.UpdatedAt
-            };
-
-            return Result.Success(planDto);
+            return Result.Success(plan);
         }
         catch (NpgsqlException e)
         {

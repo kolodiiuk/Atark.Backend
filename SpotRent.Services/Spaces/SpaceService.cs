@@ -70,7 +70,8 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
             var query = Context.Spaces.AsQueryable();
 
             query = req.Includes(query);
-            query = query.AsExpandable().Where(req.Predicate);
+            query = query.AsExpandable().Where(req.Predicate)
+                .Where(s => s.IsAvailable == true);
             query = req.OrderBy(query);
 
             var total = await query.CountAsync(cancellationToken);
