@@ -63,7 +63,34 @@ public class SpacesController : BaseController<SpacesController>
         var isParsed = int.TryParse(userId, out var id);
         if (isParsed)
         {
+            var resolvedAddressId = spaceDto.AddressId;
+            if (spaceDto.Address is not null)
+            {
+                var addressResult =
+                    await _spaceService.GetOrCreateAddressAsync(spaceDto.Address.MapToAddress(), cancellationToken);
+                if (addressResult.Failure)
+                {
+                    var addressStatus = addressResult.Error?.Contains("required", StringComparison.OrdinalIgnoreCase) ==
+                                        true
+                        ? StatusCodes.Status400BadRequest
+                        : StatusCodes.Status500InternalServerError;
+                    return StatusCode(addressStatus, new ProblemDetails { Detail = addressResult.Error });
+                }
+
+                resolvedAddressId = addressResult.Value.Id;
+            }
+
+            if (resolvedAddressId < 1)
+            {
+                return StatusCode(StatusCodes.Status400BadRequest,
+                    new ProblemDetails
+                    {
+                        Detail = "Address information is required. Provide a valid addressId or address payload."
+                    });
+            }
+
             var space = spaceDto.MapToSpace();
+            space.AddressId = resolvedAddressId;
             space.CreatedAt = DateTime.UtcNow;
             space.OwnerId = id;
             var result = await _spaceService.CreateSpaceAsync(space, cancellationToken);
@@ -75,11 +102,65 @@ public class SpacesController : BaseController<SpacesController>
                         "Failed to create space. Error: {Error}", result.Error));
 
             return result.Failure
-                ? StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Detail = result.Error })
+                ? StatusCode(IsBadRequestError(result.Error)
+                        ? StatusCodes.Status400BadRequest
+                        : StatusCodes.Status500InternalServerError,
+                    new ProblemDetails { Detail = result.Error })
                 : StatusCode(StatusCodes.Status201Created, new { result.Value.Id });
         }
 
         return StatusCode(StatusCodes.Status401Unauthorized);
+    }
+
+    [Authorize(Roles = "Owner")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [HttpPost("address")]
+    [EndpointSummary("Creates or reuses an address")]
+    [EndpointDescription("Finds an existing matching address by building/street/city/region, otherwise creates it.")]
+    public async Task<IActionResult> GetOrCreateAddress(CreateAddressDto addressDto, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (addressDto is null)
+        {
+            return StatusCode(StatusCodes.Status400BadRequest, new ProblemDetails { Detail = "Payload is not valid" });
+        }
+
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return StatusCode(StatusCodes.Status401Unauthorized);
+        }
+
+        var result = await _spaceService.GetOrCreateAddressAsync(addressDto.MapToAddress(), cancellationToken);
+        if (result.Failure)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Detail = result.Error });
+        }
+
+        return StatusCode(StatusCodes.Status200OK, AddressDto.Map(result.Value));
+    }
+
+    [Authorize(Roles = "Owner")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [HttpGet("attributes")]
+    [EndpointSummary("Gets available attributes")]
+    [EndpointDescription("Returns the list of space attributes for creating attribute values.")]
+    public async Task<IActionResult> GetAttributes(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var result = await _spaceService.GetAttributesAsync(cancellationToken);
+        if (result.Failure)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails { Detail = result.Error });
+        }
+
+        return StatusCode(StatusCodes.Status200OK, result.Value.Select(AttributeDto.Map).ToList());
     }
 
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -383,8 +464,35 @@ public class SpacesController : BaseController<SpacesController>
         var isParsed = int.TryParse(userId, out var parsedUserId);
         if (isParsed)
         {
+            var resolvedAddressId = spaceDto.AddressId;
+            if (spaceDto.Address is not null)
+            {
+                var addressResult =
+                    await _spaceService.GetOrCreateAddressAsync(spaceDto.Address.MapToAddress(), cancellationToken);
+                if (addressResult.Failure)
+                {
+                    var addressStatus = addressResult.Error?.Contains("required", StringComparison.OrdinalIgnoreCase) ==
+                                        true
+                        ? StatusCodes.Status400BadRequest
+                        : StatusCodes.Status500InternalServerError;
+                    return StatusCode(addressStatus, new ProblemDetails { Detail = addressResult.Error });
+                }
+
+                resolvedAddressId = addressResult.Value.Id;
+            }
+
+            if (resolvedAddressId < 1)
+            {
+                return StatusCode(StatusCodes.Status400BadRequest,
+                    new ProblemDetails
+                    {
+                        Detail = "Address information is required. Provide a valid addressId or address payload."
+                    });
+            }
+
             var space = spaceDto.MapToSpace(id);
             space.Id = id;
+            space.AddressId = resolvedAddressId;
             var result = await _spaceService.UpdateSpaceAsync(space, parsedUserId, cancellationToken);
             result.OnSuccess(() =>
                     Log(LogLevel.Information, SpacesControllerEventIds.UpdateSpaceSuccess,
@@ -397,6 +505,8 @@ public class SpacesController : BaseController<SpacesController>
             {
                 var status = result.Error?.StartsWith("No space", StringComparison.OrdinalIgnoreCase) == true
                     ? StatusCodes.Status404NotFound
+                    : IsBadRequestError(result.Error)
+                        ? StatusCodes.Status400BadRequest
                     : StatusCodes.Status500InternalServerError;
 
                 return StatusCode(status, new ProblemDetails { Detail = result.Error });
@@ -476,4 +586,17 @@ public class SpacesController : BaseController<SpacesController>
             .Include(s => s.WorkingHours)
             .Include(s => s.AttributeValues)
             .ThenInclude(av => av.Attribute);
+
+    private static bool IsBadRequestError(string error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            return false;
+        }
+
+        return error.Contains("expects", StringComparison.OrdinalIgnoreCase) ||
+               error.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||
+               error.Contains("required", StringComparison.OrdinalIgnoreCase) ||
+               error.Contains("unknown attributeid", StringComparison.OrdinalIgnoreCase);
+    }
 }

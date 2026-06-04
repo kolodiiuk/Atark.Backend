@@ -37,24 +37,43 @@ public class PaymentController : ControllerBase
             }
 
             var response = _liqPayHelper.DecodeData<LiqPayResponse>(callback.data);
-            var parseResult = int.TryParse(response.order_id, out var paymentId);
-            if (parseResult)
+
+            var id = response.order_id.Substring(1);
+            if (response.order_id[0] == 's')
             {
-                switch (response.status)
+                var subParseRes = int.TryParse(id, out var subId);
+                if (!subParseRes)
                 {
-                    case "success":
-                        await _paymentService.UpdatePaymentStatusSubscriptionAsync(paymentId, response.transaction_id,
-                            "Paid", cancellationToken);
-                        break;
-                    case "failure":
-                    case "error":
-                        await _paymentService.UpdatePaymentStatusSubscriptionAsync(paymentId, response.transaction_id,
-                            "Failed", cancellationToken);
-                        break;
-                    case "sandbox":
-                        await _paymentService.UpdatePaymentStatusSubscriptionAsync(paymentId, response.transaction_id,
-                            "TestPaid", cancellationToken);
-                        break;
+                    return BadRequest();
+                }
+
+                var res = await _paymentService.UpdatePaymentStatusSubscriptionAsync(
+                    subId,
+                    response.transaction_id,
+                    response.status,
+                    cancellationToken);
+
+                if (res.Failure)
+                {
+                    return StatusCode(418);
+                }
+            }
+            else if (response.order_id[0] == 'b')
+            {
+                var bookingParseRes = int.TryParse(id, out var bookingId);
+                if (!bookingParseRes)
+                {
+                    return BadRequest();
+                }
+
+                var res = await _paymentService.UpdatePaymentStatusBookingAsync(
+                    bookingId,
+                    response.transaction_id,
+                    response.status,
+                    cancellationToken);
+                if (res.Failure)
+                {
+                    return StatusCode(418);
                 }
             }
             else

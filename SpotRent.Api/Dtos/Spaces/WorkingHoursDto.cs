@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using SpotRent.Api.Json;
 using SpotRent.Domain.Entities;
 
 namespace SpotRent.Api.Dtos.Spaces;
@@ -8,8 +10,10 @@ public class WorkingHoursDto
 
     public DayOfWeek DayOfWeek { get; set; }
 
+    [JsonConverter(typeof(TimeOnlyJsonConverter))]
     public TimeOnly OpenTime { get; set; }
 
+    [JsonConverter(typeof(TimeOnlyJsonConverter))]
     public TimeOnly CloseTime { get; set; }
 
     public bool IsClosed { get; set; }

@@ -43,14 +43,6 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
                 return Result.Fail<SubscriptionCreationResponse>($"No user {userId} specified in order request");
             }
 
-            var existingSubscription =
-                await Context.Subscriptions.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
-            if (existingSubscription is not null)
-            {
-                return Result.Fail<SubscriptionCreationResponse>(
-                    $"User {userId} is already subscribed. Update subscription instead");
-            }
-
             subscriptionPlan =
                 await Context.SubscriptionPlans.FindAsync(new object[] { subscriptionPlanId }, cancellationToken);
             if (subscriptionPlan is null || !subscriptionPlan.IsActive)
@@ -66,7 +58,7 @@ public class SubscriptionService : BaseService<SubscriptionService>, ISubscripti
             }
 
             var paymentDataResult =
-                await _paymentService.CreatePaymentAsync(subscription.Id, subscription.TotalAmount, cancellationToken);
+                await _paymentService.CreatePaymentAsync(subscription.Id, subscription.TotalAmount, isSubscription: true, cancellationToken);
             if (paymentDataResult.Failure)
             {
                 return Result.Fail<SubscriptionCreationResponse>($"{paymentDataResult.Error}");

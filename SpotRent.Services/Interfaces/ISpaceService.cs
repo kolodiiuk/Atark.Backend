@@ -1,6 +1,7 @@
 using SpotRent.Domain.Common;
 using SpotRent.Domain.Entities;
 using SpotRent.Services.Spaces;
+using Attribute = SpotRent.Domain.Entities.Attribute;
 
 namespace SpotRent.Services.Interfaces;
 
@@ -26,4 +27,8 @@ public interface ISpaceService
         CancellationToken cancellationToken);
 
     Task<Result<IEnumerable<Space>>> GetOwnerSpacesAsync(int ownerId, CancellationToken ct);
+
+    Task<Result<Address>> GetOrCreateAddressAsync(Address address, CancellationToken cancellationToken);
+
+    Task<Result<IEnumerable<Attribute>>> GetAttributesAsync(CancellationToken cancellationToken);
 }

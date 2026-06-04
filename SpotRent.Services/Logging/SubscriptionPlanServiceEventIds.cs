@@ -15,5 +15,7 @@ internal static class SubscriptionPlanServiceEventIds
 
     internal static readonly EventId DeactivateSubscriptionPlan = new(3105, nameof(SubscriptionPlanService.DeactivateSubscriptionPlanAsync));
 
-    internal static readonly EventId DeleteSubscriptionPlan = new(3106, nameof(SubscriptionPlanService.DeleteSubscriptionPlanAsync));
+    internal static readonly EventId ActivateSubscriptionPlan = new(3106, nameof(SubscriptionPlanService.ActivateSubscriptionPlanAsync));
+
+    internal static readonly EventId DeleteSubscriptionPlan = new(3107, nameof(SubscriptionPlanService.DeleteSubscriptionPlanAsync));
 }

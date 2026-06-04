@@ -6,7 +6,7 @@ namespace SpotRent.Services.Interfaces;
 public interface IPaymentService
 {
     Task<Result<LiqPayPaymentData>>
-        CreatePaymentAsync(int id, decimal totalAmount, CancellationToken cancellationToken);
+        CreatePaymentAsync(int id, decimal totalAmount, bool isSubscription, CancellationToken cancellationToken);
 
     Task<Result> UpdatePaymentStatusSubscriptionAsync(int subscriptionId, long transactionId, string status,
         CancellationToken cancellationToken);

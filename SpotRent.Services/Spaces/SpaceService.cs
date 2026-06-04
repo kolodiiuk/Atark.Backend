@@ -27,6 +27,12 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
 
         try
         {
+            var normalizeResult = await NormalizeAttributeValuesAsync(space.AttributeValues, cancellationToken);
+            if (normalizeResult.Failure)
+            {
+                return Result.Fail<Space>(normalizeResult.Error);
+            }
+
             var now = DateTime.UtcNow;
             space.CreatedAt = now;
             space.UpdatedAt = now;
@@ -307,6 +313,88 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
         }
     }
 
+    public async Task<Result<Address>> GetOrCreateAddressAsync(Address address, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (address is null)
+        {
+            return Result.Fail<Address>("Address payload cannot be null");
+        }
+
+        if (string.IsNullOrWhiteSpace(address.Building) ||
+            string.IsNullOrWhiteSpace(address.Street) ||
+            string.IsNullOrWhiteSpace(address.Region))
+        {
+            return Result.Fail<Address>("Building, street and region are required");
+        }
+
+        var city = string.IsNullOrWhiteSpace(address.City) ? string.Empty : address.City.Trim();
+        var building = address.Building.Trim();
+        var street = address.Street.Trim();
+        var region = address.Region.Trim();
+
+        try
+        {
+            var existing = await Context.Set<Address>()
+                .FirstOrDefaultAsync(a =>
+                        a.Building == building &&
+                        a.Street == street &&
+                        (a.City ?? string.Empty) == city &&
+                        a.Region == region,
+                    cancellationToken);
+
+            if (existing is not null)
+            {
+                return Result.Success(existing);
+            }
+
+            var created = new Address
+            {
+                Building = building,
+                Street = street,
+                City = city,
+                Region = region
+            };
+
+            await Context.Set<Address>().AddAsync(created, cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
+
+            return Result.Success(created);
+        }
+        catch (NpgsqlException e)
+        {
+            return Result.Fail<Address>($"DB error: {e.Message}.");
+        }
+        catch (Exception e)
+        {
+            return Result.Fail<Address>($"Failure creating address: {e.Message}");
+        }
+    }
+
+    public async Task<Result<IEnumerable<Domain.Entities.Attribute>>> GetAttributesAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            var attributes = await Context.Set<Domain.Entities.Attribute>()
+                .AsNoTracking()
+                .OrderBy(a => a.Name)
+                .ToListAsync(cancellationToken);
+
+            return Result.Success<IEnumerable<Domain.Entities.Attribute>>(attributes);
+        }
+        catch (NpgsqlException e)
+        {
+            return Result.Fail<IEnumerable<Domain.Entities.Attribute>>($"DB error: {e.Message}.");
+        }
+        catch (Exception e)
+        {
+            return Result.Fail<IEnumerable<Domain.Entities.Attribute>>($"Failure getting attributes: {e.Message}");
+        }
+    }
+
     public async Task<Result> UpdateSpaceAsync(Space space, int ownerId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -318,6 +406,12 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
 
         try
         {
+            var normalizeResult = await NormalizeAttributeValuesAsync(space.AttributeValues, cancellationToken);
+            if (normalizeResult.Failure)
+            {
+                return Result.Fail(normalizeResult.Error);
+            }
+
             var existingSpace = await Context.Spaces
                 .Include(s => s.AttributeValues)
                 .Include(s => s.WorkingHours)
@@ -422,6 +516,80 @@ public class SpaceService : BaseService<SpaceService>, ISpaceService
                 existingSpace.AttributeValues.Add(av);
             }
         }
+    }
+
+    private async Task<Result> NormalizeAttributeValuesAsync(
+        ICollection<AttributeValue> attributeValues,
+        CancellationToken cancellationToken)
+    {
+        if (attributeValues is null || attributeValues.Count == 0)
+        {
+            return Result.Success();
+        }
+
+        var attributeIds = attributeValues
+            .Where(a => a.AttributeId > 0)
+            .Select(a => a.AttributeId)
+            .Distinct()
+            .ToList();
+
+        if (attributeIds.Count == 0)
+        {
+            return Result.Fail("Each attribute value must reference a valid attributeId.");
+        }
+
+        var dataTypes = await Context.Set<Domain.Entities.Attribute>()
+            .Where(a => attributeIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, a => a.DataType ?? string.Empty, cancellationToken);
+
+        foreach (var av in attributeValues)
+        {
+            if (!dataTypes.TryGetValue(av.AttributeId, out var dataType))
+            {
+                return Result.Fail($"Unknown attributeId: {av.AttributeId}");
+            }
+
+            var normalizedType = dataType.Trim().ToLowerInvariant();
+            if (normalizedType is "boolean" or "bool")
+            {
+                if (!bool.TryParse(av.Value, out var boolValue))
+                {
+                    return Result.Fail($"Attribute {av.AttributeId} expects boolean value.");
+                }
+
+                av.Value = boolValue ? "true" : "false";
+                av.MinValue = null;
+                av.MaxValue = null;
+                continue;
+            }
+
+            if (normalizedType is "integer" or "int" or "number" or "numeric")
+            {
+                if (!int.TryParse(av.Value, out var intValue))
+                {
+                    return Result.Fail($"Attribute {av.AttributeId} expects integer value.");
+                }
+
+                av.Value = intValue.ToString();
+                if (av.MinValue.HasValue && av.MaxValue.HasValue && av.MinValue > av.MaxValue)
+                {
+                    return Result.Fail($"Attribute {av.AttributeId} has invalid range: minValue > maxValue.");
+                }
+
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(av.Value))
+            {
+                return Result.Fail($"Attribute {av.AttributeId} expects non-empty value.");
+            }
+
+            av.Value = av.Value.Trim();
+            av.MinValue = null;
+            av.MaxValue = null;
+        }
+
+        return Result.Success();
     }
 
     private void UpdateWorkingHours(Space space, Space existingSpace)

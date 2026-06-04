@@ -16,7 +16,7 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
         _liqPayHelper = liqPayHelper;
     }
 
-    public async Task<Result<LiqPayPaymentData>> CreatePaymentAsync(int id, decimal total,
+    public async Task<Result<LiqPayPaymentData>> CreatePaymentAsync(int id, decimal total, bool isSubscription,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -26,7 +26,8 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
             var paymentData = _liqPayHelper.GeneratePaymentData(
                 total,
                 "UAH",
-                "",
+                "Desc",
+                isSubscription,
                 id
             );
 
@@ -52,13 +53,15 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
         {
             switch (status)
             {
-                case "TestPaid":
+                case "sandbox":
                     subscription.PaymentStatus = PaymentStatus.TestPaid;
+                    subscription.Status = SubscriptionStatus.Active;
                     break;
-                case "Paid":
+                case "success":
                     subscription.PaymentStatus = PaymentStatus.Paid;
+                    subscription.Status = SubscriptionStatus.Active;
                     break;
-                case "Failed":
+                case "failure" or "error":
                     subscription.PaymentStatus = PaymentStatus.Failed;
                     subscription.Status = SubscriptionStatus.Cancelled;
                     break;
@@ -88,13 +91,15 @@ public class PaymentService : BaseService<PaymentService>, IPaymentService
         {
             switch (status)
             {
-                case "TestPaid":
+                case "sandbox":
                     booking.PaymentStatus = PaymentStatus.TestPaid;
+                    booking.Status = BookingStatus.Active;
                     break;
-                case "Paid":
+                case "success":
                     booking.PaymentStatus = PaymentStatus.Paid;
+                    booking.Status = BookingStatus.Active;
                     break;
-                case "Failed":
+                case "failure" or "error":
                     booking.PaymentStatus = PaymentStatus.Failed;
                     booking.Status = BookingStatus.Cancelled;
                     break;

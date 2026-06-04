@@ -273,6 +273,49 @@ public class SubscriptionPlanService : BaseService<SubscriptionPlanService>, ISu
         }
     }
 
+    public async Task<Result> ActivateSubscriptionPlanAsync(int subscriptionPlanId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            var plan = await Context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Id == subscriptionPlanId,
+                cancellationToken);
+            if (plan is null)
+            {
+                return Result.Fail($"No subscription plan with id: {subscriptionPlanId}");
+            }
+
+            if (plan.IsActive)
+            {
+                return Result.Success();
+            }
+
+            plan.IsActive = true;
+            Context.Update(plan);
+            await Context.SaveChangesAsync(cancellationToken);
+
+            return Result.Success();
+        }
+        catch (NpgsqlException e)
+        {
+            Log(LogLevel.Error, SubscriptionPlanServiceEventIds.ActivateSubscriptionPlan,
+                "DB error activating subscription plan {subscriptionPlanId}. Error: {error}",
+                subscriptionPlanId, e.Message);
+
+            return Result.Fail($"DB error: {e.Message}.");
+        }
+        catch (Exception e)
+        {
+            Log(LogLevel.Error, SubscriptionPlanServiceEventIds.ActivateSubscriptionPlan,
+                "Error activating subscription plan {subscriptionPlanId}. Error: {error}",
+                subscriptionPlanId, e.Message);
+
+            return Result.Fail($"Failure activating subscription plan: {e.Message}.");
+        }
+    }
+
     public async Task<Result> DeleteSubscriptionPlanAsync(int subscriptionPlanId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

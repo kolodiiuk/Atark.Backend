@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using SpotRent.Api.Json;
 using SpotRent.Domain.Entities;
 using SpotRent.Domain.Enums;
 
@@ -9,6 +11,7 @@ public record UpdateSpaceDto
 
     public string Description { get; init; }
 
+    [JsonConverter(typeof(SpaceTypeJsonConverter))]
     public SpaceType SpaceType { get; init; }
 
     public string Room { get; set; }
@@ -20,6 +23,8 @@ public record UpdateSpaceDto
     public decimal HourlyRate { get; init; }
 
     public int AddressId { get; init; }
+
+    public CreateAddressDto Address { get; init; }
 
     public string ImageUrl { get; set; }
 

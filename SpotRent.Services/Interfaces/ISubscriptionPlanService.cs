@@ -18,6 +18,8 @@ public interface ISubscriptionPlanService
 
     Task<Result> DeactivateSubscriptionPlanAsync(int subscriptionPlanId, CancellationToken cancellationToken);
 
+    Task<Result> ActivateSubscriptionPlanAsync(int subscriptionPlanId, CancellationToken cancellationToken);
+
     Task<Result> DeleteSubscriptionPlanAsync(int subscriptionPlanId, CancellationToken cancellationToken);
 
     Task<Result<IEnumerable<SubscriptionPlanDto>>> GetOwnerPlansAsync(int userId, CancellationToken cancellationToken);

@@ -63,7 +63,8 @@ public class BookingService : BaseService<BookingService>, IBookingService
             var subscription = await Context.Subscriptions
                 .Include(s => s.SubscriptionPlan)
                 .FirstOrDefaultAsync(IsActive(userId, space.OwnerId, now), cancellationToken);
-            if (subscription != null)
+            var hasSubscription = subscription != null;
+            if (hasSubscription)
             {
                 var timeDiff = req.EndTime - req.StartTime;
                 var hoursAfterSubscriptionUsage = subscription.SubscriptionPlan.IncludedHours -
@@ -74,10 +75,10 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 }
 
                 subscription.HoursUsed = subscription.SubscriptionPlan.IncludedHours - hoursAfterSubscriptionUsage;
+                await Context.SaveChangesAsync(cancellationToken);
             }
 
-            var booking = await CreateBooking();
-
+            var booking = await CreateBooking(hasSubscription);
             if (booking is null)
             {
                 return Result.Fail<BookingCreationResponse>("Invalid duration");
@@ -86,8 +87,11 @@ public class BookingService : BaseService<BookingService>, IBookingService
             Result<LiqPayPaymentData> paymentDataResult = null;
             if (subscription == null)
             {
-                paymentDataResult =
-                    await _paymentService.CreatePaymentAsync(booking.Id, booking.TotalAmount, cancellationToken);
+                paymentDataResult = await _paymentService.CreatePaymentAsync(
+                        booking.Id,
+                        booking.TotalAmount,
+                        isSubscription: false,
+                        cancellationToken);
                 if (paymentDataResult.Failure)
                 {
                     return Result.Fail<BookingCreationResponse>($"{paymentDataResult.Error}");
@@ -123,7 +127,7 @@ public class BookingService : BaseService<BookingService>, IBookingService
             return Result.Fail<BookingCreationResponse>($"Failure creating booking: {e.Message}");
         }
 
-        async Task<Booking> CreateBooking()
+        async Task<Booking> CreateBooking(bool hasSubscription)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -144,6 +148,11 @@ public class BookingService : BaseService<BookingService>, IBookingService
                 UpdatedAt = now,
                 CancelledAt = null
             };
+            if (hasSubscription)
+            {
+                booking.Status = BookingStatus.Active;
+                booking.PaymentStatus = PaymentStatus.Paid;
+            }
 
             await Context.AddAsync(booking, cancellationToken);
             await Context.SaveChangesAsync(cancellationToken);

@@ -281,4 +281,54 @@ public class SubscriptionPlanController : BaseController<SubscriptionPlanControl
 
         return StatusCode(StatusCodes.Status401Unauthorized);
     }
+
+    [Authorize(Roles = "Owner, Admin")]
+    [HttpPut("activate/{subscriptionPlanId:int}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [EndpointSummary("Activates a subscription plan.")]
+    [EndpointDescription("Attempts to activate the specified plan while logging success or failure details.")]
+    public async Task<IActionResult> ActivateSubscriptionPlanAsync(int subscriptionPlanId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (subscriptionPlanId < 1)
+        {
+            return StatusCode(StatusCodes.Status400BadRequest, "Id is less than 1");
+        }
+
+        Log(LogLevel.Information, SubscriptionPlanControllerEventIds.ActivateSubscriptionPlanEvent,
+            "Activating subscription plan with id {subscriptionPlanId}.",
+            subscriptionPlanId);
+
+        var ownerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(ownerId))
+        {
+            Log(LogLevel.Warning, AuthControllerEventIds.TokenVerificationNoUserId, "User ID not found in claims");
+
+            return StatusCode(StatusCodes.Status401Unauthorized);
+        }
+
+        var isParsed = int.TryParse(ownerId, out _);
+        if (isParsed)
+        {
+            var result = await _subscriptionPlanService.ActivateSubscriptionPlanAsync(subscriptionPlanId, cancellationToken);
+
+            result.OnSuccess(() => Log(
+                    LogLevel.Information, SubscriptionPlanControllerEventIds.ActivateSubscriptionPlanEvent,
+                    "Activated subscription plan with id {subscriptionPlanId}.", subscriptionPlanId))
+                .OnFailure(() => Log(
+                    LogLevel.Error, SubscriptionPlanControllerEventIds.ActivateSubscriptionPlanEvent,
+                    "Error activating subscription plan with id {subscriptionPlanId}. Error: {error}",
+                    subscriptionPlanId, result.Error));
+
+            return result.Failure
+                ? StatusCode(StatusCodes.Status400BadRequest, result.Error)
+                : StatusCode(StatusCodes.Status200OK);
+        }
+
+        return StatusCode(StatusCodes.Status401Unauthorized);
+    }
 }

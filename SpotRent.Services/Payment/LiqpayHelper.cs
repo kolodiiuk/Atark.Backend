@@ -18,7 +18,7 @@ public class LiqPayHelper
         _privateKey = configuration["LiqPay:PrivateKey"];
     }
 
-    public LiqPayPaymentData GeneratePaymentData(decimal amount, string currency, string description, int orderId)
+    public LiqPayPaymentData GeneratePaymentData(decimal amount, string currency, string description, bool isSubscription, int orderId)
     {
         var paymentParams = new
         {
@@ -28,13 +28,10 @@ public class LiqPayHelper
             amount = amount.ToString(),
             currency,
             description,
-            order_id = orderId.ToString(),
+            order_id = isSubscription ? $"s{orderId}" : $"b{orderId}"
         };
 
         var jsonParams = JsonSerializer.Serialize(paymentParams);
-        Debug.WriteLine("JSON:");
-        Debug.WriteLine(jsonParams);
-        Debug.WriteLine("---------------------------------");
         var data = Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonParams));
         var signature = GenerateSignature(data);
 
