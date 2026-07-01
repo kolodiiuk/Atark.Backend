@@ -40,9 +40,5 @@ public class Space
 
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
 
-    public ICollection<Device> Devices { get; set; } = new List<Device>();
-
-    public ICollection<AccessLog> AccessLogs { get; set; } = new List<AccessLog>();
-
     public ICollection<WorkingHours> WorkingHours { get; set; } = new List<WorkingHours>();
 }

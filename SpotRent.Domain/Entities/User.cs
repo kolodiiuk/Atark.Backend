@@ -31,7 +31,5 @@ public class User : IdentityUser<int>
 
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
 
-    public ICollection<AccessLog> AccessLogs { get; set; } = new List<AccessLog>();
-
     public ICollection<UserRefreshToken> RefreshTokens { get; set; }
 }

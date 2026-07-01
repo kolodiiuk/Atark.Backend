@@ -13,11 +13,7 @@ public class SpotRentDbContext : IdentityDbContext<User, IdentityRole<int>, int>
     {
     }
 
-    public DbSet<AccessLog> AccessLogs { get; set; }
-
     public DbSet<Booking> Bookings { get; set; }
-
-    public DbSet<Device> Devices { get; set; }
 
     public DbSet<Space> Spaces { get; set; }
 

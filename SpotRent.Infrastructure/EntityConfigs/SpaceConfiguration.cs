@@ -54,11 +54,6 @@ public class SpaceConfiguration : IEntityTypeConfiguration<Space>
             .HasForeignKey(b => b.SpaceId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasMany(s => s.Devices)
-            .WithOne(d => d.Space)
-            .HasForeignKey(d => d.SpaceId)
-            .OnDelete(DeleteBehavior.Cascade);
-
         builder.HasMany(s => s.WorkingHours)
             .WithOne(wh => wh.Space)
             .HasForeignKey(wh => wh.SpaceId)
@@ -78,10 +73,5 @@ public class SpaceConfiguration : IEntityTypeConfiguration<Space>
             .WithMany(a => a.Spaces)
             .HasForeignKey(s => s.AddressId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasMany(s => s.AccessLogs)
-            .WithOne(al => al.Space)
-            .HasForeignKey(al => al.SpaceId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 }
